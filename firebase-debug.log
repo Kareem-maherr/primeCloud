@@ -1,0 +1,91 @@
+[debug] [2024-12-08T07:15:45.022Z] ----------------------------------------------------------------------
+[debug] [2024-12-08T07:15:45.024Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Karim\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init functions
+[debug] [2024-12-08T07:15:45.025Z] CLI Version:   13.28.0
+[debug] [2024-12-08T07:15:45.025Z] Platform:      win32
+[debug] [2024-12-08T07:15:45.025Z] Node Version:  v20.11.1
+[debug] [2024-12-08T07:15:45.025Z] Time:          Sun Dec 08 2024 10:15:45 GMT+0300 (Arabian Standard Time)
+[debug] [2024-12-08T07:15:45.025Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2024-12-08T07:15:45.104Z] Object "" in "firebase.json" has unknown property: {"additionalProperty":"type"}
+[debug] [2024-12-08T07:15:45.108Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2024-12-08T07:15:45.108Z] > authorizing via signed-in user (kingo2055@gmail.com)
+[debug] [2024-12-08T07:15:45.109Z] Object "" in "firebase.json" has unknown property: {"additionalProperty":"type"}
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\Karim\Downloads\New folder (2)\CascadeProjects\windsurf-project\drive-clone
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] but for now we'll just set up a default project.
+[info] 
+[debug] [2024-12-08T07:15:51.043Z] Using project from CLI flag: pg-file-management
+[debug] [2024-12-08T07:15:51.044Z] Checked if tokens are valid: false, expires at: 1733639555805
+[debug] [2024-12-08T07:15:51.044Z] Checked if tokens are valid: false, expires at: 1733639555805
+[debug] [2024-12-08T07:15:51.044Z] > refreshing access token with scopes: []
+[debug] [2024-12-08T07:15:51.046Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2024-12-08T07:15:51.046Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2024-12-08T07:15:51.406Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2024-12-08T07:15:51.406Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2024-12-08T07:15:51.416Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/pg-file-management [none]
+[debug] [2024-12-08T07:15:51.938Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/pg-file-management 200
+[debug] [2024-12-08T07:15:51.938Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/pg-file-management {"projectId":"pg-file-management","projectNumber":"567494999913","displayName":"pg-file-management","name":"projects/pg-file-management","resources":{"hostingSite":"pg-file-management"},"state":"ACTIVE","etag":"1_72b9add6-5cde-4598-ba07-0573bd1be88e"}
+[info] i  Using project pg-file-management (pg-file-management) 
+[info] 
+=== Functions Setup
+[debug] [2024-12-08T07:15:51.945Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2024-12-08T07:15:51.945Z] > authorizing via signed-in user (kingo2055@gmail.com)
+[debug] [2024-12-08T07:15:51.945Z] [iam] checking project pg-file-management for permissions ["firebase.projects.get"]
+[debug] [2024-12-08T07:15:51.946Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:51.946Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:51.946Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/pg-file-management:testIamPermissions [none]
+[debug] [2024-12-08T07:15:51.946Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/pg-file-management:testIamPermissions x-goog-quota-user=projects/pg-file-management
+[debug] [2024-12-08T07:15:51.946Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/pg-file-management:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2024-12-08T07:15:52.929Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/pg-file-management:testIamPermissions 200
+[debug] [2024-12-08T07:15:52.930Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/pg-file-management:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2024-12-08T07:15:52.930Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:52.930Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:52.930Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:52.930Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:52.930Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com [none]
+[debug] [2024-12-08T07:15:52.930Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com x-goog-quota-user=projects/pg-file-management
+[debug] [2024-12-08T07:15:52.931Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/runtimeconfig.googleapis.com [none]
+[debug] [2024-12-08T07:15:52.931Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/runtimeconfig.googleapis.com x-goog-quota-user=projects/pg-file-management
+[debug] [2024-12-08T07:15:54.045Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com 200
+[debug] [2024-12-08T07:15:54.046Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com [omitted]
+[debug] [2024-12-08T07:15:54.046Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:54.046Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:15:54.046Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com:enable [none]
+[debug] [2024-12-08T07:15:54.046Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com:enable x-goog-quota-user=projects/pg-file-management
+[debug] [2024-12-08T07:15:54.083Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/runtimeconfig.googleapis.com 200
+[debug] [2024-12-08T07:15:54.084Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/runtimeconfig.googleapis.com [omitted]
+[debug] [2024-12-08T07:15:54.715Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com:enable 200
+[debug] [2024-12-08T07:15:54.715Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com:enable [omitted]
+[debug] [2024-12-08T07:16:04.717Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:16:04.718Z] Checked if tokens are valid: true, expires at: 1733645750406
+[debug] [2024-12-08T07:16:04.718Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com [none]
+[debug] [2024-12-08T07:16:04.718Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com x-goog-quota-user=projects/pg-file-management
+[debug] [2024-12-08T07:16:05.737Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com 200
+[debug] [2024-12-08T07:16:05.737Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/pg-file-management/services/cloudfunctions.googleapis.com [omitted]
+[info] Let's create a new codebase for your functions.
+[info] A directory corresponding to the codebase will be created in your project
+[info] with sample code pre-configured.
+
+[info] See https://firebase.google.com/docs/functions/organize-functions for
+[info] more information on organizing your functions using codebases.
+
+[info] Functions can be deployed with firebase deploy.
+
