@@ -4,8 +4,8 @@ import {
   getDocs, 
   deleteDoc, 
   doc,
-  query,
-  where,
+  //query,
+  //where,
   getDoc
 } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -28,7 +28,7 @@ import {
   Toolbar,
   IconButton,
   Link,
-  Tooltip
+  //Tooltip
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';

@@ -21,24 +21,24 @@ import {
   Fade,
   useTheme,
   useMediaQuery,
-  Snackbar,
-  Alert,
+  //Snackbar,
+  //Alert,
   Chip,
-  Paper,
+  //Paper,
   InputAdornment,
   Divider,
   CardContent,
-  CardActions,
-  Avatar,
+  //CardActions,
+  //Avatar,
   Drawer,
   List,
   ListItem,
   ListItemButton,
-  AppBar,
-  Toolbar,
-  Slider,
-  BottomNavigation,
-  BottomNavigationAction,
+  //AppBar,
+  //Toolbar,
+  //Slider,
+  //BottomNavigation,
+  //BottomNavigationAction,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -50,19 +50,19 @@ import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   CloudQueue as CloudIcon,
-  DeleteOutline,
-  CalendarToday,
+  //DeleteOutline,
+  //CalendarToday,
   FolderShared,
-  Menu as MenuIcon,
-  Settings as SettingsIcon,
+  //Menu as MenuIcon,
+  //Settings as SettingsIcon,
   Close as CloseIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
+  //DarkMode as DarkModeIcon,
+  //LightMode as LightModeIcon,
   Logout as LogoutIcon,
   Folder as FolderIcon,
-  Create as RenameIcon,
+  //Create as RenameIcon,
   ArrowBack as ArrowBackIcon,
-  Create as CreateIcon,
+  //Create as CreateIcon,
   DriveFileRenameOutline as DriveFileRenameOutlineIcon,
   Description,
   Image as ImageIcon,
@@ -74,26 +74,26 @@ import {
   SwapHoriz as SwapHorizIcon,
   NoteAdd as NoteAddIcon,
 } from '@mui/icons-material';
-import { styled, alpha } from '@mui/material/styles';
+import { styled, /*alpha*/ } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeMode } from '../../context/ThemeContext';
 import { firestore, storage, auth } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, /*setDoc*/ addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useNavigate, useParams } from 'react-router-dom';
 import Calendar from './Calendar';
-import FolderManager from './FolderManager';
+//import FolderManager from './FolderManager';
 import FileUploader from './FileUploader';
-import TextFileCreator from './TextFileCreator';
-import MediaViewer from './MediaViewer';
+//import TextFileCreator from './TextFileCreator';
+//import MediaViewer from './MediaViewer';
 import UnderImplementation from './UnderImplementation';
-import CalendarModal from './CalendarModal';
+//import CalendarModal from './CalendarModal';
 import UploadSuccess from './UploadSuccess';
 import TopBar from '../Layout/TopBar';
-import AnimatedUploadIcon from '../Icons/AnimatedUploadIcon';
+//import AnimatedUploadIcon from '../Icons/AnimatedUploadIcon';
 import ActionBar from './ActionBar';
 import logo from '../../assets/logo.png';
-import DashboardHeader from './DashboardHeader';
+//import DashboardHeader from './DashboardHeader';
 
 // Styled Components
 const StyledSearchBar = styled(TextField)(({ theme }) => ({

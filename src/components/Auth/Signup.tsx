@@ -9,7 +9,7 @@ import {
   Link,
   Alert
 } from '@mui/material';
-import { useAuth } from '../../context/AuthContext';
+//import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, firestore } from '../../config/firebase';

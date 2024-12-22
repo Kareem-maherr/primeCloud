@@ -10,14 +10,14 @@ import {
   Paper,
   BottomNavigation,
   BottomNavigationAction,
-  Breadcrumbs,
-  Link,
+  //Breadcrumbs,
+  //Link,
   Tooltip,
 } from '@mui/material';
 import {
   Folder as FolderIcon,
   ArrowBack as ArrowBackIcon,
-  Home as HomeIcon,
+  //Home as HomeIcon,
   MoreVert as MoreIcon,
   CloudQueue as CloudIcon,
   InsertDriveFile as FileIcon,
@@ -47,7 +47,7 @@ const SharedFolder: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const theme = useTheme();
+  //const theme = useTheme();
   const [currentView, setCurrentView] = useState<'shared' | 'personal'>('shared');
 
   const fetchFolders = async (parentId: string | null = null) => {

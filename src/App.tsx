@@ -4,7 +4,7 @@ import { CssBaseline } from '@mui/material';
 import { ThemeProvider } from './context/ThemeContext';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
-import Dashboard from './components/Dashboard/Dashboard';
+//import Dashboard from './components/Dashboard/Dashboard';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import Landing from './components/Landing/Landing';
 import { AuthProvider } from './context/AuthContext';
@@ -29,7 +29,7 @@ function App() {
               path="/dashboard/*" 
               element={
                 <PrivateRoute>
-                  <Dashboard />
+                  <DashboardV2 />
                 </PrivateRoute>
               } 
             />
