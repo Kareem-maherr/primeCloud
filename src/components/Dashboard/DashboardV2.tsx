@@ -3,40 +3,39 @@ import { motion } from 'framer-motion';
 import {
   Box,
   TextField,
-  IconButton,
+  Card,
   Typography,
-  Button,
-  Chip,
-  Paper,
-  Grid,
+  IconButton,
   Menu,
   MenuItem,
-  InputAdornment,
-  Divider,
-  Card,
-  CardContent,
-  CardActions,
-  useTheme,
-  Tooltip,
-  CircularProgress,
-  Fade,
-  Slide,
-  Avatar,
+  ListItemIcon,
+  ListItemText,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Button,
+  CircularProgress,
+  Grid,
+  Tooltip,
+  Fade,
+  useTheme,
+  useMediaQuery,
+  Snackbar,
+  Alert,
+  Chip,
+  Paper,
+  InputAdornment,
+  Divider,
+  CardContent,
+  CardActions,
+  Avatar,
   Drawer,
   List,
   ListItem,
-  ListItemIcon,
-  ListItemText,
   ListItemButton,
-  useMediaQuery,
   AppBar,
   Toolbar,
-  Snackbar,
-  Alert,
   Slider,
   BottomNavigation,
   BottomNavigationAction,
@@ -65,40 +64,54 @@ import {
   ArrowBack as ArrowBackIcon,
   Create as CreateIcon,
   DriveFileRenameOutline as DriveFileRenameOutlineIcon,
-  Description as FileIcon,
+  Description,
   Image as ImageIcon,
   VideoFile as VideoIcon,
   PictureAsPdf as PdfIcon,
   InsertDriveFile as DefaultFileIcon,
   CreateNewFolder as CreateNewFolderIcon,
+  GetApp as GetAppIcon,
+  SwapHoriz as SwapHorizIcon,
+  NoteAdd as NoteAddIcon,
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeMode } from '../../context/ThemeContext';
 import { firestore, storage, auth } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
-import logo from '../../assets/logo.png';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useNavigate, useParams } from 'react-router-dom';
 import Calendar from './Calendar';
 import FolderManager from './FolderManager';
 import FileUploader from './FileUploader';
 import TextFileCreator from './TextFileCreator';
 import MediaViewer from './MediaViewer';
+import UnderImplementation from './UnderImplementation';
+import CalendarModal from './CalendarModal';
+import UploadSuccess from './UploadSuccess';
+import TopBar from '../Layout/TopBar';
+import AnimatedUploadIcon from '../Icons/AnimatedUploadIcon';
+import ActionBar from './ActionBar';
+import logo from '../../assets/logo.png';
+import DashboardHeader from './DashboardHeader';
 
 // Styled Components
 const StyledSearchBar = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
-    borderRadius: 30,
+    borderRadius: 8,
     backgroundColor: theme.palette.background.paper,
     '&:hover': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: theme.palette.primary.main,
       },
     },
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderWidth: 1,
+    },
     '&.Mui-focused': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: theme.palette.primary.main,
+        borderWidth: 1,
       },
     },
   },
@@ -169,20 +182,13 @@ interface FolderItem {
   sharedWith: string[];
 }
 
-interface User {
-  displayName: string | null;
-  email: string | null;
-  photoURL: string | undefined;
-  uid: string;
-}
-
 interface SortConfig {
   key: string;
   direction: 'asc' | 'desc';
 }
 
 // Mock user data
-const mockUser: User = {
+const mockUser = {
   displayName: "John Doe",
   email: "john.doe@example.com",
   photoURL: "https://ui-avatars.com/api/?name=John+Doe&background=random",
@@ -193,7 +199,7 @@ const getFileIcon = (type: string) => {
   if (type.startsWith('image/')) return <ImageIcon />;
   if (type.startsWith('video/')) return <VideoIcon />;
   if (type === 'application/pdf') return <PdfIcon />;
-  if (type.includes('text/')) return <FileIcon />;
+  if (type.includes('text/')) return <Description />;
   return <DefaultFileIcon />;
 };
 
@@ -220,10 +226,10 @@ const DashboardV2: React.FC = () => {
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [cardSize, setCardSize] = useState<number>(3);
+  const [cardSize, setCardSize] = useState<number>(2);
   const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [currentView, setCurrentView] = useState('personal');
+  const [currentView, setCurrentView] = useState<'grid' | 'list'>('grid');
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -231,7 +237,7 @@ const DashboardV2: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'asc' });
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [fileMenuAnchor, setFileMenuAnchor] = useState<{ [key: string]: HTMLElement | null }>({});
+  const [fileMenuAnchor, setFileMenuAnchor] = useState<HTMLElement | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -239,8 +245,8 @@ const DashboardV2: React.FC = () => {
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [addMenuAnchorEl, setAddMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [folderMenuAnchor, setFolderMenuAnchor] = useState<{ [key: string]: HTMLElement | null }>({});
   const [selectedFolder, setSelectedFolder] = useState<FolderItem | null>(null);
+  const [folderMenuAnchor, setFolderMenuAnchor] = useState<null | HTMLElement>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [isTextFileCreatorOpen, setIsTextFileCreatorOpen] = useState(false);
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; value: string }>({
@@ -253,6 +259,9 @@ const DashboardV2: React.FC = () => {
     message: ''
   });
   const [selectedViewerFile, setSelectedViewerFile] = useState<FileItem | null>(null);
+  const [isTrashDialogOpen, setIsTrashDialogOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<{ show: boolean; fileName: string }>({ show: false, fileName: '' });
   const user = currentUser || mockUser;
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -296,7 +305,8 @@ const DashboardV2: React.FC = () => {
 
   const refreshFiles = useCallback(() => {
     fetchFiles();
-  }, [/* dependencies */]);
+    fetchFolders();
+  }, [currentFolder, currentUser]);
 
   const renameFile = async (fileId: string, newName: string) => {
     try {
@@ -311,7 +321,29 @@ const DashboardV2: React.FC = () => {
   };
 
   const deleteFile = async (fileId: string) => {
-    console.log('Deleting file', fileId);
+    try {
+      // Get the file reference from Firestore
+      const fileRef = doc(firestore, 'files', fileId);
+      const fileDoc = await getDoc(fileRef);
+      
+      if (!fileDoc.exists()) {
+        throw new Error('File not found');
+      }
+
+      const fileData = fileDoc.data();
+      
+      // Delete the file from Firebase Storage
+      const storageRef = ref(storage, fileData.path);
+      await deleteObject(storageRef);
+      
+      // Delete the file metadata from Firestore
+      await deleteDoc(fileRef);
+      
+      console.log('File deleted successfully:', fileId);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
   };
 
   const handleLogout = async () => {
@@ -327,23 +359,23 @@ const DashboardV2: React.FC = () => {
     if (!currentUser) return;
     try {
       const foldersRef = collection(firestore, 'folders');
-      const q = query(
+      const foldersQuery = query(
         foldersRef,
-        where('parentId', '==', currentFolder),
-        where('userId', '==', currentUser.uid)
+        where('userId', '==', currentUser.uid),
+        where('parentId', '==', currentFolder)
       );
-      const querySnapshot = await getDocs(q);
       
-      const ownedFolders = querySnapshot.docs.map(doc => ({
+      const foldersSnapshot = await getDocs(foldersQuery);
+      const fetchedFolders: FolderItem[] = foldersSnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
-        createdAt: doc.data().createdAt || new Date().toISOString(),
+        createdAt: doc.data().createdAt,
         parentId: doc.data().parentId,
         sharedWith: doc.data().sharedWith || []
-      })) as FolderItem[];
+      }));
       
-      console.log('Fetched folders:', ownedFolders);
-      setFolders(ownedFolders);
+      console.log('Fetched folders:', fetchedFolders);
+      setFolders(fetchedFolders);
     } catch (error) {
       console.error('Error fetching folders:', error);
     }
@@ -514,9 +546,12 @@ const DashboardV2: React.FC = () => {
   }, [folderId]);
 
   useEffect(() => {
-    fetchFolders();
-    fetchFiles();
+    refreshFiles();
   }, [currentUser, currentFolder]);
+
+  useEffect(() => {
+    refreshFiles();
+  }, [refreshFiles, currentFolder]);
 
   const handleFolderClick = (folderId: string) => {
     setCurrentFolder(folderId);
@@ -598,13 +633,53 @@ const DashboardV2: React.FC = () => {
   };
 
   const handleFolderMenuClick = (event: React.MouseEvent<HTMLElement>, folder: FolderItem) => {
+    console.log('Menu Click - Event:', event);
+    console.log('Menu Click - Folder:', folder);
     event.stopPropagation();
-    setFolderMenuAnchor({ ...folderMenuAnchor, [folder.id]: event.currentTarget });
     setSelectedFolder(folder);
+    setFolderMenuAnchor(event.currentTarget);
   };
 
-  const handleFolderMenuClose = (folderId: string) => {
-    setFolderMenuAnchor({ ...folderMenuAnchor, [folderId]: null });
+  const handleFolderMenuClose = () => {
+    console.log('Menu Close');
+    setSelectedFolder(null);
+    setFolderMenuAnchor(null);
+  };
+
+  const handleFolderMenuItemClick = async (action: string) => {
+    console.log('Menu Item Click - Action:', action);
+    console.log('Menu Item Click - Selected Folder:', selectedFolder);
+    
+    if (!selectedFolder) {
+      console.log('No folder selected!');
+      return;
+    }
+
+    switch (action) {
+      case 'rename':
+        console.log('Attempting rename...');
+        await handleFolderRename(selectedFolder);
+        break;
+      case 'share':
+        console.log('Opening share dialog...');
+        setIsShareDialogOpen(true);
+        setShareEmail('');
+        setShareError(null);
+        setShareSuccess(null);
+        break;
+      case 'delete':
+        console.log('Attempting delete...');
+        await handleFolderDelete(selectedFolder.id);
+        break;
+    }
+    handleFolderMenuClose();
+  };
+
+  const handleShareDialogClose = () => {
+    setIsShareDialogOpen(false);
+    setShareEmail('');
+    setShareError(null);
+    setShareSuccess(null);
   };
 
   const handleShare = async () => {
@@ -695,71 +770,85 @@ const DashboardV2: React.FC = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleFileClick = async (file: FileItem) => {
-    if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.includes('text/')) {
-      try {
-        // Get the download URL
-        const storageRef = ref(storage, file.path);
-        const downloadURL = await getDownloadURL(storageRef);
-        
-        setSelectedViewerFile({
-          ...file,
-          downloadURL
-        });
-      } catch (error) {
-        console.error('Error getting download URL:', error);
-      }
+  const handleFileClick = (file: FileItem) => {
+    if (isPreviewable(file.type)) {
+      setSelectedFile(file);
     } else {
+      // Handle download or other actions for non-previewable files
       window.open(file.downloadURL, '_blank');
     }
   };
 
+  const isPreviewable = (type: string): boolean => {
+    return [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/ogg',
+      'audio/mpeg', 'audio/ogg', 'audio/wav',
+      'application/pdf',
+      'text/plain'
+    ].includes(type);
+  };
+
   const handleFileMenuClick = (event: React.MouseEvent<HTMLElement>, file: FileItem) => {
+    console.log('File Menu Click - Event:', event);
+    console.log('File Menu Click - File:', file);
     event.stopPropagation();
-    setFileMenuAnchor({ ...fileMenuAnchor, [file.id]: event.currentTarget });
     setSelectedFile(file);
+    setFileMenuAnchor(event.currentTarget);
   };
 
-  const handleFileMenuClose = (fileId: string) => {
-    setFileMenuAnchor({ ...fileMenuAnchor, [fileId]: null });
+  const handleFileMenuClose = () => {
+    console.log('File Menu Close');
+    setSelectedFile(null);
+    setFileMenuAnchor(null);
   };
 
-  const handleFileDelete = async () => {
-    if (!selectedFile) return;
+  const handleFileMenuItemClick = async (action: string) => {
+    console.log('File Menu Item Click - Action:', action);
+    console.log('File Menu Item Click - Selected File:', selectedFile);
     
-    const confirmDelete = await showConfirmDialog(
-      'Delete File',
-      `Are you sure you want to delete "${selectedFile.name}"?`
-    );
-    
-    if (confirmDelete) {
-      try {
-        await deleteFile(selectedFile.id);
-        refreshFiles();
-        showSnackbar('File deleted successfully', 'success');
-      } catch (error) {
-        console.error('Error deleting file:', error);
-        showSnackbar('Failed to delete file', 'error');
-      }
+    if (!selectedFile) {
+      console.log('No file selected!');
+      return;
     }
-    handleFileMenuClose(selectedFile.id);
-  };
 
-  const handleFileRename = async () => {
-    if (!selectedFile) return;
-    
-    const newName = await showRenameDialog(selectedFile.name);
-    if (newName && newName !== selectedFile.name) {
-      try {
-        await renameFile(selectedFile.id, newName);
-        refreshFiles();
-        showSnackbar('File renamed successfully', 'success');
-      } catch (error) {
-        console.error('Error renaming file:', error);
-        showSnackbar('Failed to rename file', 'error');
-      }
+    switch (action) {
+      case 'rename':
+        console.log('Attempting file rename...');
+        const newName = await showRenameDialog(selectedFile.name);
+        if (newName) {
+          try {
+            const fileRef = doc(firestore, 'files', selectedFile.id);
+            await updateDoc(fileRef, { name: newName });
+            refreshFiles();
+            showSnackbar('File renamed successfully', 'success');
+          } catch (error) {
+            console.error('Error renaming file:', error);
+            showSnackbar('Error renaming file', 'error');
+          }
+        }
+        break;
+      case 'delete':
+        console.log('Attempting file delete...');
+        const confirmed = await showConfirmDialog(
+          'Delete File',
+          `Are you sure you want to delete "${selectedFile.name}"?`
+        );
+        if (confirmed) {
+          try {
+            await deleteDoc(doc(firestore, 'files', selectedFile.id));
+            const storageRef = ref(storage, selectedFile.path);
+            await deleteObject(storageRef);
+            refreshFiles();
+            showSnackbar('File deleted successfully', 'success');
+          } catch (error) {
+            console.error('Error deleting file:', error);
+            showSnackbar('Error deleting file', 'error');
+          }
+        }
+        break;
     }
-    handleFileMenuClose(selectedFile.id);
+    handleFileMenuClose();
   };
 
   const handleCreateFolderClick = () => {
@@ -778,22 +867,33 @@ const DashboardV2: React.FC = () => {
       return;
     }
 
+    if (!currentUser) {
+      setSnackbar({
+        open: true,
+        message: 'You must be logged in to create folders',
+        severity: 'error'
+      });
+      return;
+    }
+
     setIsCreatingFolder(true);
     try {
       const folderRef = collection(firestore, 'folders');
       const newFolder = {
         name: newFolderName.trim(),
         createdAt: new Date().toISOString(),
-        createdBy: currentUser?.email || '',
+        userId: currentUser.uid,
+        createdBy: currentUser.email || '',
         parentId: currentFolder,
         sharedWith: [],
         type: 'folder'
       };
 
       const docRef = await addDoc(folderRef, newFolder);
-      const folderWithId = { ...newFolder, id: docRef.id };
       
-      setFolders(prev => [...prev, folderWithId]);
+      // Refresh folders instead of manually updating state
+      await refreshFiles();
+      
       handleCloseCreateFolderDialog();
       setSnackbar({
         open: true,
@@ -812,6 +912,310 @@ const DashboardV2: React.FC = () => {
     }
   };
 
+  const handleTrashClick = () => {
+    setIsTrashDialogOpen(true);
+  };
+
+  const handleCalendarClick = () => {
+    setIsCalendarOpen(true);
+  };
+
+  const handleFolderDelete = async (folderId: string) => {
+    if (!currentUser) return;
+    
+    const confirmed = await showConfirmDialog(
+      'Delete Folder',
+      'Are you sure you want to delete this folder? This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const folderRef = doc(firestore, 'folders', folderId);
+      await deleteDoc(folderRef);
+      refreshFiles();
+      showSnackbar('Folder deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      showSnackbar('Failed to delete folder', 'error');
+    }
+  };
+
+  const handleFolderRename = async (folder: FolderItem) => {
+    const newName = await showRenameDialog(folder.name);
+    if (!newName || newName === folder.name) return;
+
+    try {
+      const folderRef = doc(firestore, 'folders', folder.id);
+      await updateDoc(folderRef, { name: newName });
+      refreshFiles();
+      showSnackbar('Folder renamed successfully', 'success');
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      showSnackbar('Failed to rename folder', 'error');
+    }
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (window.location.pathname === '/trash') {
+      return <UnderImplementation />;
+    }
+
+    if (window.location.pathname === '/calendar') {
+      return <Calendar />;
+    }
+
+    return (
+      <Grid container spacing={{ xs: 1, sm: 2, md: 3 }}>
+        <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
+          <div>
+            <FolderCard onClick={handleSharedFolderClick}>
+              <FilePreview>
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'secondary.lighter',
+                  }}
+                >
+                  <FolderShared
+                    sx={{ fontSize: 64, color: 'secondary.main' }}
+                  />
+                </Box>
+              </FilePreview>
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Typography
+                  variant="subtitle1"
+                  noWrap
+                  sx={{
+                    fontWeight: 500,
+                    color: 'text.primary',
+                  }}
+                >
+                  Shared
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
+                  Shared files and folders
+                </Typography>
+              </CardContent>
+            </FolderCard>
+          </div>
+        </Grid>
+        {folders.map((folder) => (
+          <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={folder.id}>
+            <div>
+              <FolderCard onClick={() => handleFolderClick(folder.id)}>
+                <FilePreview>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'primary.lighter',
+                    }}
+                  >
+                    <FolderIcon
+                      sx={{ fontSize: 64, color: 'primary.main' }}
+                    />
+                  </Box>
+                </FilePreview>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          variant="subtitle1"
+                          noWrap
+                          sx={{
+                            fontWeight: 500,
+                            color: 'text.primary',
+                          }}
+                        >
+                          {folder.name}
+                        </Typography>
+                        {folder.sharedWith && folder.sharedWith.length > 0 && (
+                          <Tooltip
+                            title={
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+                                  Shared with:
+                                </Typography>
+                                {folder.sharedWith.map((email, idx) => (
+                                  <Typography key={idx} variant="body2">
+                                    {email}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            }
+                          >
+                            <CloudIcon 
+                              sx={{ 
+                                fontSize: 20,
+                                color: 'text.secondary',
+                                opacity: 0.6,
+                                transition: 'opacity 0.2s',
+                                '&:hover': {
+                                  opacity: 1
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                        )}
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.5 }}
+                      >
+                        {new Date(folder.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFolderMenuClick(e, folder);
+                      }}
+                      sx={{
+                        color: 'text.secondary',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </CardContent>
+              </FolderCard>
+            </div>
+          </Grid>
+        ))}
+        {files
+          .filter(file =>
+            file.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+          .map((file) => (
+            <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={file.id}>
+              <div>
+                <FileCard onClick={() => handleFileClick(file)}>
+                  <FilePreview>
+                    {file.type.startsWith('image/') ? (
+                      <img
+                        src={file.downloadURL}
+                        alt={file.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : file.type.startsWith('video/') ? (
+                      <video
+                        src={file.downloadURL}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        preload="metadata"
+                      />
+                    ) : file.type === 'application/pdf' ? (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: '#ffebee'
+                        }}
+                      >
+                        <PdfIcon sx={{ fontSize: 48, color: '#f44336' }} />
+                      </Box>
+                    ) : file.type.startsWith('text/') ? (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: '#e3f2fd'
+                        }}
+                      >
+                        <Description sx={{ fontSize: 48, color: '#2196f3' }} />
+                      </Box>
+                    ) : (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'grey.100'
+                        }}
+                      >
+                        {getFileIcon(file.type)}
+                      </Box>
+                    )}
+                  </FilePreview>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography
+                        variant="subtitle1"
+                        noWrap
+                        sx={{
+                          fontWeight: 500,
+                          color: 'text.primary',
+                          flex: 1,
+                        }}
+                      >
+                        {file.name}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleFileMenuClick(e, file)}
+                        sx={{
+                          color: 'text.secondary',
+                          '&:hover': { bgcolor: 'action.hover' },
+                          ml: 1,
+                        }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                    >
+                      {formatFileSize(file.size)}
+                    </Typography>
+                  </CardContent>
+                </FileCard>
+              </div>
+            </Grid>
+          ))}
+      </Grid>
+    );
+  };
+
   return (
     <Box sx={{ 
       p: { xs: 1, sm: 3 }, 
@@ -821,285 +1225,53 @@ const DashboardV2: React.FC = () => {
     }}>
       <Fade in timeout={1000}>
         <Box>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            mb: 2,
-            gap: { xs: 1, sm: 2 }
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
-              {isMobile && (
-                <IconButton
-                  color="inherit"
-                  aria-label="open drawer"
-                  edge="start"
-                  onClick={handleDrawerToggle}
-                  sx={{ mr: { xs: 0.5, sm: 1 } }}
-                >
-                  <MenuIcon />
-                </IconButton>
-              )}
-              <img
-                src={logo}
-                alt="PrimeCloud Logo"
-                style={{ height: isMobile ? '32px' : '40px' }}
-              />
-              <Typography
-                variant={isMobile ? "h6" : "h4"}
-                sx={{
-                  color: theme.palette.primary.main,
-                  fontWeight: 700,
-                  background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  letterSpacing: '0.5px'
-                }}
-              >
-                PrimeCloud
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
-              <IconButton 
-                onClick={(e) => setSettingsAnchorEl(e.currentTarget)}
-                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-              >
-                <SettingsIcon />
-              </IconButton>
-              <Menu
-                anchorEl={settingsAnchorEl}
-                open={Boolean(settingsAnchorEl)}
-                onClose={() => setSettingsAnchorEl(null)}
-                PaperProps={{
-                  sx: {
-                    width: 320,
-                    p: 2,
-                  },
-                }}
-              >
-                <Box sx={{ px: 2, py: 1 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Card Size
-                  </Typography>
-                  <Slider
-                    value={cardSize}
-                    min={2}
-                    max={6}
-                    step={1}
-                    onChange={(_, value) => setCardSize(value as number)}
-                    marks={[
-                      { value: 2, label: 'Large' },
-                      { value: 4, label: 'Medium' },
-                      { value: 6, label: 'Small' },
-                    ]}
-                    sx={{
-                      '& .MuiSlider-markLabel': {
-                        fontSize: '0.875rem',
-                      },
-                    }}
-                  />
-                </Box>
-              </Menu>
-              <IconButton 
-                onClick={toggleDarkMode}
-                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-              >
-                {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-              </IconButton>
-              <IconButton onClick={handleLogout}>
-                <LogoutIcon />
-              </IconButton>
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: theme.palette.primary.main,
-                  cursor: 'pointer',
-                }}
-              >
-                {user.displayName?.charAt(0).toUpperCase() || "U"}
-              </Avatar>
-            </Box>
-          </Box>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            mb: 2,
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: { xs: 1, sm: 2 }
-          }}>
-            <StyledSearchBar
-              fullWidth
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search files..."
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
+          <TopBar 
+            onDrawerToggle={isMobile ? handleDrawerToggle : undefined}
+            onLogout={handleLogout}
+            user={user}
+            cardSize={cardSize}
+            onCardSizeChange={setCardSize}
+            onSearch={handleSearch}
+            showSearch={isMobile}
+          />
+          {/* Desktop Action Bar */}
+          {!isMobile && (
+            <ActionBar
+              onSearch={handleSearch}
+              onUpload={() => setIsUploadOpen(true)}
+              onCreate={() => setIsTextFileCreatorOpen(true)}
+              onCreateFolder={() => setCreateFolderDialogOpen(true)}
+              onGetApp={() => {
+                window.open('https://drive.google.com/drive/download', '_blank');
               }}
+              onTransfer={() => {
+                showSnackbar('Transfer feature coming soon!', 'success');
+              }}
+              onShare={() => setIsShareDialogOpen(true)}
+              onViewChange={(view) => setCurrentView(view)}
+              currentView={currentView}
+              onTrash={() => setIsTrashDialogOpen(true)}
             />
+          )}
+          <Box sx={{
+            px: { xs: 2, sm: 3 },
+            py: 2,
+          }}>
             <Box sx={{ 
               display: 'flex', 
+              flexWrap: 'wrap', 
               gap: 1, 
-              width: { xs: '100%', sm: 'auto' }
+              mb: 3
             }}>
               <Button
-                variant="contained"
-                startIcon={<CloudUploadIcon />}
-                onClick={handleAddMenuClick}
+                variant="outlined"
+                startIcon={<DeleteIcon />}
+                onClick={handleTrashClick}
                 sx={{
                   display: { xs: 'none', sm: 'inline-flex' },
-                  borderRadius: 30,
-                  px: { xs: 2, sm: 3 },
-                  flex: { xs: 1, sm: 'none' },
-                }}
-              >
-                Upload
-              </Button>
-              <Menu
-                anchorEl={addMenuAnchorEl}
-                open={Boolean(addMenuAnchorEl)}
-                onClose={handleAddMenuClose}
-                anchorOrigin={{
-                  vertical: 'bottom',
-                  horizontal: 'right',
-                }}
-                transformOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setIsUploadOpen(true);
-                    handleAddMenuClose();
-                  }}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    minWidth: 200,
-                  }}
-                >
-                  <ListItemIcon>
-                    <CloudUploadIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Upload Files</ListItemText>
-                </MenuItem>
-
-                <MenuItem
-                  onClick={() => {
-                    setCreateFolderDialogOpen(true);
-                    handleAddMenuClose();
-                  }}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    minWidth: 200,
-                  }}
-                >
-                  <ListItemIcon>
-                    <CreateNewFolderIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Create Folder</ListItemText>
-                </MenuItem>
-
-                <MenuItem
-                  onClick={() => {
-                    setIsTextFileCreatorOpen(true);
-                    handleAddMenuClose();
-                  }}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    minWidth: 200,
-                  }}
-                >
-                  <ListItemIcon>
-                    <CreateIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Create Text File</ListItemText>
-                </MenuItem>
-              </Menu>
-              <IconButton 
-                onClick={(e) => setAnchorEl(e.currentTarget)}
-                sx={{ display: { xs: 'none', sm: 'flex' } }}
-              >
-                <FilterIcon />
-              </IconButton>
-            </Box>
-          </Box>
-
-          <Box sx={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: 1, 
-            mb: 3
-          }}>
-            <Button
-              variant="outlined"
-              startIcon={<DeleteOutline />}
-              onClick={() => navigate('/dashboard-v2/recycle-bin')}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                borderRadius: 2,
-                px: 3,
-                py: 1,
-                color: 'text.secondary',
-                borderColor: 'divider',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
-                  bgcolor: 'primary.lighter'
-                }
-              }}
-            >
-              Recycle Bin
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CalendarToday />}
-              onClick={() => setShowCalendar(!showCalendar)}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                borderRadius: 2,
-                px: 3,
-                py: 1,
-                color: showCalendar ? 'primary.main' : 'text.secondary',
-                borderColor: showCalendar ? 'primary.main' : 'divider',
-                bgcolor: showCalendar ? 'primary.lighter' : 'transparent',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
-                  bgcolor: 'primary.lighter'
-                }
-              }}
-            >
-              Calendar
-            </Button>
-          </Box>
-          <Box sx={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: 1, 
-            mb: 2
-          }}>
-            {currentFolder && (
-              <Button
-                variant="outlined"
-                startIcon={<ArrowBackIcon />}
-                onClick={handleBackClick}
-                sx={{
                   borderRadius: 2,
                   px: 3,
                   py: 1,
-                  mb: 2,
                   color: 'text.secondary',
                   borderColor: 'divider',
                   '&:hover': {
@@ -1109,229 +1281,277 @@ const DashboardV2: React.FC = () => {
                   }
                 }}
               >
-                Back
+                Recycle Bin
               </Button>
-            )}
-          </Box>
-          <Grid container spacing={{ xs: 1, sm: 2, md: 3 }}>
-            <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
-              <div>
-                <FolderCard onClick={handleSharedFolderClick}>
-                  <FilePreview>
-                    <Box
-                      sx={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'secondary.lighter',
-                      }}
-                    >
-                      <FolderShared
-                        sx={{ fontSize: 64, color: 'secondary.main' }}
-                      />
-                    </Box>
-                  </FilePreview>
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography
-                      variant="subtitle1"
-                      noWrap
-                      sx={{
-                        fontWeight: 500,
-                        color: 'text.primary',
-                      }}
-                    >
-                      Shared
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 0.5 }}
-                    >
-                      Shared files and folders
-                    </Typography>
-                  </CardContent>
-                </FolderCard>
-              </div>
-            </Grid>
-            {folders.map((folder) => (
-              <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={folder.id}>
-                <div>
-                  <FolderCard onClick={() => handleFolderClick(folder.id)}>
-                    <FilePreview>
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: 'primary.lighter',
-                        }}
-                      >
-                        <FolderIcon
-                          sx={{ fontSize: 64, color: 'primary.main' }}
-                        />
-                      </Box>
-                    </FilePreview>
-                    <CardContent sx={{ flexGrow: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography
-                              variant="subtitle1"
-                              noWrap
-                              sx={{
-                                fontWeight: 500,
-                                color: 'text.primary',
-                              }}
-                            >
-                              {folder.name}
-                            </Typography>
-                            {folder.sharedWith && folder.sharedWith.length > 0 && (
-                              <Tooltip
-                                title={
-                                  <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
-                                      Shared with:
-                                    </Typography>
-                                    {folder.sharedWith.map((email, idx) => (
-                                      <Typography key={idx} variant="body2">
-                                        {email}
-                                      </Typography>
-                                    ))}
-                                  </Box>
-                                }
-                              >
-                                <CloudIcon 
-                                  sx={{ 
-                                    fontSize: 20,
-                                    color: 'text.secondary',
-                                    opacity: 0.6,
-                                    transition: 'opacity 0.2s',
-                                    '&:hover': {
-                                      opacity: 1
-                                    }
-                                  }} 
-                                />
-                              </Tooltip>
-                            )}
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{ mt: 0.5 }}
-                          >
-                            {new Date(folder.createdAt).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFolderMenuClick(e, folder);
-                          }}
-                          sx={{
-                            color: 'text.secondary',
-                            '&:hover': { bgcolor: 'action.hover' },
-                          }}
-                        >
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </CardContent>
-                  </FolderCard>
-                </div>
-              </Grid>
-            ))}
-            {files
-              .filter(file =>
-                file.name.toLowerCase().includes(searchTerm.toLowerCase())
-              )
-              .map((file) => (
-                <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={file.id}>
-                  <div>
-                    <FileCard onClick={() => handleFileClick(file)}>
-                      <FilePreview>
-                        {file.type.startsWith('image/') ? (
-                          <img
-                            src={file.downloadURL}
-                            alt={file.name}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-                        ) : (
-                          <Box
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: 'grey.100'
-                            }}
-                          >
-                            <Typography variant="h1" color="textSecondary">
-                              {file.name.slice(-3).toUpperCase()}
-                            </Typography>
-                          </Box>
-                        )}
-                      </FilePreview>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography
-                            variant="subtitle1"
-                            noWrap
-                            sx={{
-                              fontWeight: 500,
-                              color: 'text.primary',
-                              flex: 1,
-                            }}
-                          >
-                            {file.name}
-                          </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => handleFileMenuClick(e, file)}
-                            sx={{
-                              color: 'text.secondary',
-                              '&:hover': { bgcolor: 'action.hover' },
-                              ml: 1,
-                            }}
-                          >
-                            <MoreVertIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                        >
-                          {formatFileSize(file.size)}
-                        </Typography>
-                      </CardContent>
-                    </FileCard>
-                  </div>
-                </Grid>
-              ))}
-          </Grid>
-          <Box sx={{ mt: 4 }}>
-            {!loading && files.length === 0 && folders.length === 0 && (
-              <Typography color="text.secondary" align="center">
-                No files in this folder
-              </Typography>
-            )}
+            </Box>
+            <Box sx={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: 1, 
+              mb: 2
+            }}>
+              {currentFolder && (
+                <Button
+                  variant="outlined"
+                  startIcon={<ArrowBackIcon />}
+                  onClick={handleBackClick}
+                  sx={{
+                    borderRadius: 2,
+                    px: 3,
+                    py: 1,
+                    mb: 2,
+                    color: 'text.secondary',
+                    borderColor: 'divider',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      color: 'primary.main',
+                      bgcolor: 'primary.lighter'
+                    }
+                  }}
+                >
+                  Back
+                </Button>
+              )}
+            </Box>
+            {renderContent()}
+            <Box sx={{ mt: 4 }}>
+              {!loading && files.length === 0 && folders.length === 0 && (
+                <Typography color="text.secondary" align="center">
+                  No files in this folder
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Box>
       </Fade>
+      {/* Mobile Drawer */}
+      {isMobile && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile.
+          }}
+          sx={{
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 },
+          }}
+        >
+          <Box sx={{ overflow: 'auto' }}>
+            {/* Logo and Name */}
+            <Box sx={{ 
+              p: 2, 
+              display: 'flex', 
+              alignItems: 'center',
+              gap: 2,
+              borderBottom: 1,
+              borderColor: 'divider'
+            }}>
+              <img src={logo} alt="Logo" style={{ width: 32, height: 32 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                PrimeCloud
+              </Typography>
+            </Box>
 
+            <List>
+              {/* File Operations */}
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  setIsUploadOpen(true);
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <CloudUploadIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Upload" />
+                </ListItemButton>
+              </ListItem>
+              
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  setIsTextFileCreatorOpen(true);
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <NoteAddIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Create File" />
+                </ListItemButton>
+              </ListItem>
+
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  setCreateFolderDialogOpen(true);
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <CreateNewFolderIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="New Folder" />
+                </ListItemButton>
+              </ListItem>
+
+              <Divider sx={{ my: 1 }} />
+
+              {/* Sharing & Transfer */}
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  setIsShareDialogOpen(true);
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <ShareIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Share" />
+                </ListItemButton>
+              </ListItem>
+
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  showSnackbar('Transfer feature coming soon!', 'success');
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <SwapHorizIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Transfer" />
+                </ListItemButton>
+              </ListItem>
+
+              <Divider sx={{ my: 1 }} />
+
+              {/* System Operations */}
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  window.open('https://drive.google.com/drive/download', '_blank');
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <GetAppIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Get App" />
+                </ListItemButton>
+              </ListItem>
+
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => {
+                  setIsTrashDialogOpen(true);
+                  handleDrawerToggle();
+                }}>
+                  <ListItemIcon>
+                    <DeleteIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Trash" />
+                </ListItemButton>
+              </ListItem>
+
+              <Divider sx={{ my: 1 }} />
+              
+              {/* Account */}
+              <ListItem disablePadding>
+                <ListItemButton onClick={handleLogout}>
+                  <ListItemIcon>
+                    <LogoutIcon color="error" />
+                  </ListItemIcon>
+                  <ListItemText primary="Logout" sx={{ color: 'error.main' }} />
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </Box>
+        </Drawer>
+      )}
+      {/* Rename Dialog */}
+      <Dialog open={renameDialog.open} onClose={() => (window as any).handleRenameDialogClose(null)}>
+        <DialogTitle>Rename</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Name"
+            fullWidth
+            variant="outlined"
+            value={renameDialog.value}
+            onChange={(e) => setRenameDialog({ ...renameDialog, value: e.target.value })}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => (window as any).handleRenameDialogClose(null)}>Cancel</Button>
+          <Button onClick={() => (window as any).handleRenameDialogClose(renameDialog.value)} variant="contained" color="primary">
+            Rename
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirm Dialog */}
+      <Dialog open={confirmDialog.open} onClose={() => (window as any).handleConfirmDialogClose(false)}>
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <Typography>{confirmDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => (window as any).handleConfirmDialogClose(false)}>Cancel</Button>
+          <Button onClick={() => (window as any).handleConfirmDialogClose(true)} variant="contained" color="error">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Folder Menu */}
+      <Menu
+        anchorEl={folderMenuAnchor}
+        open={Boolean(folderMenuAnchor)}
+        onClose={handleFolderMenuClose}
+      >
+        <MenuItem onClick={() => handleFolderMenuItemClick('rename')}>
+          <ListItemIcon>
+            <DriveFileRenameOutlineIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Rename</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleFolderMenuItemClick('share')}>
+          <ListItemIcon>
+            <ShareIcon fontSize="small" color="primary" />
+          </ListItemIcon>
+          <ListItemText>Share</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleFolderMenuItemClick('delete')}>
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Share Dialog */}
+      <Dialog open={isShareDialogOpen} onClose={handleShareDialogClose}>
+        <DialogTitle>Share Folder</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Email Address"
+            type="email"
+            fullWidth
+            variant="outlined"
+            value={shareEmail}
+            onChange={(e) => setShareEmail(e.target.value)}
+            error={Boolean(shareError)}
+            helperText={shareError}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleShareDialogClose}>Cancel</Button>
+          <Button onClick={handleShare} variant="contained" color="primary">
+            Share
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* File Upload Dialog */}
       <Dialog
         open={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>
@@ -1343,7 +1563,7 @@ const DashboardV2: React.FC = () => {
               position: 'absolute',
               right: 8,
               top: 8,
-              color: 'grey.500',
+              color: (theme) => theme.palette.grey[500],
             }}
           >
             <CloseIcon />
@@ -1353,487 +1573,83 @@ const DashboardV2: React.FC = () => {
           <FileUploader
             currentFolder={currentFolder}
             onFileUploaded={() => {
-              fetchFiles();
               setIsUploadOpen(false);
+              refreshFiles();
+              setUploadSuccess({ show: true, fileName: 'Files' });
             }}
           />
         </DialogContent>
       </Dialog>
 
-      {isTextFileCreatorOpen && (
-        <TextFileCreator
-          currentFolder={currentFolder}
-          onFileCreated={() => {
-            fetchFiles();
-            setIsTextFileCreatorOpen(false);
-          }}
-          onClose={() => setIsTextFileCreatorOpen(false)}
-        />
-      )}
-
-      {selectedFolder && (
-        <Menu
-          anchorEl={folderMenuAnchor[selectedFolder.id]}
-          open={Boolean(folderMenuAnchor[selectedFolder.id])}
-          onClose={() => handleFolderMenuClose(selectedFolder.id)}
-        >
-          <MenuItem onClick={() => {
-            setIsShareDialogOpen(true);
-            handleFolderMenuClose(selectedFolder.id);
-          }}>
-            <ListItemIcon>
-              <ShareIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Share</ListItemText>
-          </MenuItem>
-          <MenuItem onClick={() => {
-            setIsRenameDialogOpen(true);
-            handleFolderMenuClose(selectedFolder.id);
-          }}>
-            <ListItemIcon>
-              <RenameIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Rename</ListItemText>
-          </MenuItem>
-          <MenuItem onClick={() => {
-            // handleDeleteFolder(selectedFolder.id);
-            handleFolderMenuClose(selectedFolder.id);
-          }}>
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Menu>
-      )}
-
-      {selectedFile && (
-        <Menu
-          anchorEl={fileMenuAnchor[selectedFile.id]}
-          open={Boolean(fileMenuAnchor[selectedFile.id])}
-          onClose={() => handleFileMenuClose(selectedFile.id)}
-        >
-          <MenuItem onClick={() => window.open(selectedFile.downloadURL, '_blank')}>
-            <ListItemIcon>
-              <DownloadIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Download</ListItemText>
-          </MenuItem>
-          <MenuItem onClick={handleFileRename}>
-            <ListItemIcon>
-              <DriveFileRenameOutlineIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Rename</ListItemText>
-          </MenuItem>
-          <MenuItem onClick={handleFileDelete}>
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" color="error" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Menu>
-      )}
-
-      <Dialog open={isShareDialogOpen} onClose={() => setIsShareDialogOpen(false)}>
-        <DialogTitle>Share Folder</DialogTitle>
-        <DialogContent>
-          {shareError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {shareError}
-            </Alert>
-          )}
-          {shareSuccess && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              {shareSuccess}
-            </Alert>
-          )}
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Email Address"
-            type="email"
-            fullWidth
-            value={shareEmail}
-            onChange={(e) => setShareEmail(e.target.value)}
-          />
-          {selectedFolder?.sharedWith && selectedFolder.sharedWith.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Shared with:
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {(selectedFolder.sharedWith as string[]).map((email, index) => (
-                  <Chip
-                    key={index}
-                    label={email}
-                    onDelete={() => handleRemoveShare(email)}
-                    size="small"
-                  />
-                ))}
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleShare} variant="contained">Share</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar 
-        open={!!shareSuccess}
-        autoHideDuration={6000} 
-        onClose={() => setShareSuccess(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={() => setShareSuccess(null)} 
-          severity="success"
-          sx={{ width: '100%' }}
-        >
-          {shareSuccess}
-        </Alert>
-      </Snackbar>
-
-      <Dialog open={renameDialog.open} onClose={() => (window as any).handleRenameDialogClose(null)}>
-        <DialogTitle>Rename</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="New name"
-            fullWidth
-            value={renameDialog.value}
-            onChange={(e) => setRenameDialog(prev => ({ ...prev, value: e.target.value }))}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => (window as any).handleRenameDialogClose(null)}>Cancel</Button>
-          <Button onClick={() => (window as any).handleRenameDialogClose(renameDialog.value)}>Rename</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={confirmDialog.open} onClose={() => (window as any).handleConfirmDialogClose(false)}>
-        <DialogTitle>{confirmDialog.title}</DialogTitle>
-        <DialogContent>
-          <Typography>{confirmDialog.message}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => (window as any).handleConfirmDialogClose(false)}>Cancel</Button>
-          <Button onClick={() => (window as any).handleConfirmDialogClose(true)} color="error">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-
-      <Dialog 
-        open={createFolderDialogOpen} 
+      {/* Upload Success Dialog */}
+      <UploadSuccess
+        open={uploadSuccess.show}
+        onClose={() => setUploadSuccess({ show: false, fileName: '' })}
+        fileName={uploadSuccess.fileName}
+      />
+      {/* Create Folder Dialog */}
+      <Dialog
+        open={createFolderDialogOpen}
         onClose={handleCloseCreateFolderDialog}
-        fullWidth
-        maxWidth="xs"
+        aria-labelledby="create-folder-dialog-title"
       >
-        <DialogTitle>Create New Folder</DialogTitle>
+        <DialogTitle id="create-folder-dialog-title">Create New Folder</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
+            id="folder-name"
             label="Folder Name"
             type="text"
             fullWidth
-            variant="outlined"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             error={!!folderNameError}
             helperText={folderNameError}
-            sx={{ mt: 2 }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleCreateFolder();
+              }
+            }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseCreateFolderDialog}>Cancel</Button>
-          <Button
-            onClick={handleCreateFolder}
-            variant="contained"
-            disabled={!newFolderName.trim() || isCreatingFolder}
+          <Button onClick={handleCloseCreateFolderDialog} color="primary">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateFolder} 
+            color="primary"
+            disabled={isCreatingFolder}
           >
-            {isCreatingFolder ? <CircularProgress size={24} /> : 'Create'}
+            {isCreatingFolder ? (
+              <CircularProgress size={24} />
+            ) : (
+              'Create'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Drawer
-        variant="temporary"
-        anchor="left"
-        open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{
-          keepMounted: true,
-        }}
-        sx={{
-          display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': { 
-            boxSizing: 'border-box', 
-            width: 280,
-            bgcolor: 'background.paper',
-          },
-        }}
+      {/* File Menu */}
+      <Menu
+        anchorEl={fileMenuAnchor}
+        open={Boolean(fileMenuAnchor)}
+        onClose={handleFileMenuClose}
       >
-        <Box sx={{ width: '100%' }}>
-          {/* Header */}
-          <Box
-            sx={{
-              p: 2,
-              display: 'flex',
-              alignItems: 'center',
-              borderBottom: 1,
-              borderColor: 'divider',
-              bgcolor: 'background.paper',
-            }}
-          >
-            <img
-              src={logo}
-              alt="PrimeCloud Logo"
-              style={{ height: '32px' }}
-            />
-            <Typography
-              variant="h6"
-              sx={{
-                ml: 2,
-                fontWeight: 600,
-                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                letterSpacing: '0.5px'
-              }}
-            >
-              PrimeCloud
-            </Typography>
-          </Box>
-
-          {/* Content */}
-          <Box sx={{ mt: 2 }}>
-            {/* Upload Button */}
-            <Box sx={{ px: 2, mb: 3 }}>
-              <Button
-                variant="contained"
-                fullWidth
-                startIcon={<CloudUploadIcon />}
-                onClick={() => {
-                  setIsUploadOpen(true);
-                  handleDrawerToggle();
-                }}
-                sx={{
-                  py: 1,
-                  borderRadius: 2,
-                  boxShadow: 2,
-                  bgcolor: theme.palette.primary.main,
-                  '&:hover': {
-                    bgcolor: theme.palette.primary.dark,
-                  },
-                }}
-              >
-                Upload
-              </Button>
-            </Box>
-
-            {/* Create Actions */}
-            <List sx={{ px: 1, mb: 2 }}>
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={handleCreateFolderClick}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, ml: 1 }}>
-                    <CreateNewFolderIcon />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Create Folder"
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                    sx={{ ml: -0.5 }}
-                  />
-                </ListItemButton>
-              </ListItem>
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    setIsTextFileCreatorOpen(true);
-                    handleDrawerToggle();
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    <CreateIcon />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Create Text File"
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            </List>
-
-            <Divider sx={{ my: 1 }} />
-
-            {/* Navigation Items */}
-            <List sx={{ px: 1 }}>
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={toggleDarkMode}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={darkMode ? "Light Mode" : "Dark Mode"}
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    setShowCalendar(!showCalendar);
-                    handleDrawerToggle();
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    <CalendarToday />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Calendar"
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    navigate('/dashboard-v2/recycle-bin');
-                    handleDrawerToggle();
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    <DeleteOutline />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Recycle Bin"
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            </List>
-          </Box>
-        </Box>
-      </Drawer>
-
-      {/* Bottom Navigation for Mobile */}
-      <Paper
-        sx={{
-          display: { xs: 'block', sm: 'none' },
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-        }}
-        elevation={3}
-      >
-        <BottomNavigation
-          value={currentView}
-          onChange={(_, newValue) => {
-            setCurrentView(newValue);
-            if (newValue === 'shared') {
-              navigate('/dashboard-v2/shared');
-            } else {
-              navigate('/dashboard-v2');
-            }
-          }}
-          showLabels
-          sx={{
-            borderTop: 1,
-            borderColor: 'divider',
-          }}
-        >
-          <BottomNavigationAction 
-            label="Personal" 
-            icon={<FolderIcon />}
-            value="personal"
-          />
-        </BottomNavigation>
-      </Paper>
-
-      <MediaViewer
-        open={!!selectedViewerFile}
-        onClose={() => setSelectedViewerFile(null)}
-        file={selectedViewerFile}
-      />
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <></>
-      )}
+        <MenuItem onClick={() => handleFileMenuItemClick('rename')}>
+          <ListItemIcon>
+            <DriveFileRenameOutlineIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Rename</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleFileMenuItemClick('delete')}>
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

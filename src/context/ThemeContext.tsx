@@ -30,8 +30,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           primary: baseTheme.palette.primary,
           secondary: baseTheme.palette.secondary,
           background: {
-            default: darkMode ? '#0A0A0A' : '#FAFAFA',
-            paper: darkMode ? '#1A1A1A' : '#FFFFFF',
+            default: darkMode ? '#0A0A0A' : '#F5F1EA',
+            paper: darkMode ? '#1A1A1A' : '#FAF7F2',
           },
           text: {
             primary: darkMode ? '#FFFFFF' : '#2D3748',
