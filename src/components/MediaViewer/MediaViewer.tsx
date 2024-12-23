@@ -2,16 +2,16 @@ import React from 'react';
 
 interface MediaViewerProps {
   file: {
-    name: string;
-    type: string;
     downloadURL: string;
-  } | null;
-  open: boolean;
+    type: string;
+    name: string;
+  };
   onClose: () => void;
+  open: boolean;
 }
 
-const MediaViewer: React.FC<MediaViewerProps> = ({ file, open, onClose }) => {
-  if (!file) return null;
+const MediaViewer: React.FC<MediaViewerProps> = ({ file, onClose, open }) => {
+  if (!open) return null;
 
   const renderMedia = () => {
     if (file.type.startsWith('image/')) {
@@ -80,8 +80,6 @@ const MediaViewer: React.FC<MediaViewerProps> = ({ file, open, onClose }) => {
       </div>
     );
   };
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">

@@ -76,8 +76,8 @@ import { styled } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeMode } from '../../context/ThemeContext';
 import { firestore, storage, auth } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 import logo from '../../assets/logo.png';
 import { useNavigate, useParams } from 'react-router-dom';
 import Calendar from './Calendar';
@@ -85,6 +85,9 @@ import FolderManager from './FolderManager';
 import FileUploader from './FileUploader';
 import TextFileCreator from './TextFileCreator';
 import MediaViewer from './MediaViewer';
+import UnderImplementation from './UnderImplementation';
+import CalendarModal from './CalendarModal';
+import UploadSuccess from './UploadSuccess';
 
 // Styled Components
 const StyledSearchBar = styled(TextField)(({ theme }) => ({
@@ -253,6 +256,9 @@ const DashboardV2: React.FC = () => {
     message: ''
   });
   const [selectedViewerFile, setSelectedViewerFile] = useState<FileItem | null>(null);
+  const [isTrashDialogOpen, setIsTrashDialogOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<{ show: boolean; fileName: string }>({ show: false, fileName: '' });
   const user = currentUser || mockUser;
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -296,7 +302,8 @@ const DashboardV2: React.FC = () => {
 
   const refreshFiles = useCallback(() => {
     fetchFiles();
-  }, [/* dependencies */]);
+    fetchFolders();
+  }, [currentFolder, currentUser]);
 
   const renameFile = async (fileId: string, newName: string) => {
     try {
@@ -311,7 +318,29 @@ const DashboardV2: React.FC = () => {
   };
 
   const deleteFile = async (fileId: string) => {
-    console.log('Deleting file', fileId);
+    try {
+      // Get the file reference from Firestore
+      const fileRef = doc(firestore, 'files', fileId);
+      const fileDoc = await getDoc(fileRef);
+      
+      if (!fileDoc.exists()) {
+        throw new Error('File not found');
+      }
+
+      const fileData = fileDoc.data();
+      
+      // Delete the file from Firebase Storage
+      const storageRef = ref(storage, fileData.path);
+      await deleteObject(storageRef);
+      
+      // Delete the file metadata from Firestore
+      await deleteDoc(fileRef);
+      
+      console.log('File deleted successfully:', fileId);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
   };
 
   const handleLogout = async () => {
@@ -327,23 +356,23 @@ const DashboardV2: React.FC = () => {
     if (!currentUser) return;
     try {
       const foldersRef = collection(firestore, 'folders');
-      const q = query(
+      const foldersQuery = query(
         foldersRef,
-        where('parentId', '==', currentFolder),
-        where('userId', '==', currentUser.uid)
+        where('userId', '==', currentUser.uid),
+        where('parentId', '==', currentFolder)
       );
-      const querySnapshot = await getDocs(q);
       
-      const ownedFolders = querySnapshot.docs.map(doc => ({
+      const foldersSnapshot = await getDocs(foldersQuery);
+      const fetchedFolders: FolderItem[] = foldersSnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
-        createdAt: doc.data().createdAt || new Date().toISOString(),
+        createdAt: doc.data().createdAt,
         parentId: doc.data().parentId,
         sharedWith: doc.data().sharedWith || []
-      })) as FolderItem[];
+      }));
       
-      console.log('Fetched folders:', ownedFolders);
-      setFolders(ownedFolders);
+      console.log('Fetched folders:', fetchedFolders);
+      setFolders(fetchedFolders);
     } catch (error) {
       console.error('Error fetching folders:', error);
     }
@@ -514,9 +543,12 @@ const DashboardV2: React.FC = () => {
   }, [folderId]);
 
   useEffect(() => {
-    fetchFolders();
-    fetchFiles();
+    refreshFiles();
   }, [currentUser, currentFolder]);
+
+  useEffect(() => {
+    refreshFiles();
+  }, [refreshFiles, currentFolder]);
 
   const handleFolderClick = (folderId: string) => {
     setCurrentFolder(folderId);
@@ -599,8 +631,8 @@ const DashboardV2: React.FC = () => {
 
   const handleFolderMenuClick = (event: React.MouseEvent<HTMLElement>, folder: FolderItem) => {
     event.stopPropagation();
-    setFolderMenuAnchor({ ...folderMenuAnchor, [folder.id]: event.currentTarget });
     setSelectedFolder(folder);
+    setFolderMenuAnchor({ ...folderMenuAnchor, [folder.id]: event.currentTarget });
   };
 
   const handleFolderMenuClose = (folderId: string) => {
@@ -695,23 +727,23 @@ const DashboardV2: React.FC = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleFileClick = async (file: FileItem) => {
-    if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.includes('text/')) {
-      try {
-        // Get the download URL
-        const storageRef = ref(storage, file.path);
-        const downloadURL = await getDownloadURL(storageRef);
-        
-        setSelectedViewerFile({
-          ...file,
-          downloadURL
-        });
-      } catch (error) {
-        console.error('Error getting download URL:', error);
-      }
+  const handleFileClick = (file: FileItem) => {
+    if (isPreviewable(file.type)) {
+      setSelectedFile(file);
     } else {
+      // Handle download or other actions for non-previewable files
       window.open(file.downloadURL, '_blank');
     }
+  };
+
+  const isPreviewable = (type: string): boolean => {
+    return [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/ogg',
+      'audio/mpeg', 'audio/ogg', 'audio/wav',
+      'application/pdf',
+      'text/plain'
+    ].includes(type);
   };
 
   const handleFileMenuClick = (event: React.MouseEvent<HTMLElement>, file: FileItem) => {
@@ -778,22 +810,33 @@ const DashboardV2: React.FC = () => {
       return;
     }
 
+    if (!currentUser) {
+      setSnackbar({
+        open: true,
+        message: 'You must be logged in to create folders',
+        severity: 'error'
+      });
+      return;
+    }
+
     setIsCreatingFolder(true);
     try {
       const folderRef = collection(firestore, 'folders');
       const newFolder = {
         name: newFolderName.trim(),
         createdAt: new Date().toISOString(),
-        createdBy: currentUser?.email || '',
+        userId: currentUser.uid,
+        createdBy: currentUser.email || '',
         parentId: currentFolder,
         sharedWith: [],
         type: 'folder'
       };
 
       const docRef = await addDoc(folderRef, newFolder);
-      const folderWithId = { ...newFolder, id: docRef.id };
       
-      setFolders(prev => [...prev, folderWithId]);
+      // Refresh folders instead of manually updating state
+      await refreshFiles();
+      
       handleCloseCreateFolderDialog();
       setSnackbar({
         open: true,
@@ -810,6 +853,290 @@ const DashboardV2: React.FC = () => {
     } finally {
       setIsCreatingFolder(false);
     }
+  };
+
+  const handleTrashClick = () => {
+    setIsTrashDialogOpen(true);
+  };
+
+  const handleCalendarClick = () => {
+    setIsCalendarOpen(true);
+  };
+
+  const handleFolderDelete = async (folderId: string) => {
+    if (!currentUser) return;
+    
+    const confirmed = await showConfirmDialog(
+      'Delete Folder',
+      'Are you sure you want to delete this folder? This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const folderRef = doc(firestore, 'folders', folderId);
+      await deleteDoc(folderRef);
+      refreshFiles();
+      showSnackbar('Folder deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      showSnackbar('Failed to delete folder', 'error');
+    }
+  };
+
+  const handleFolderRename = async (folder: FolderItem) => {
+    const newName = await showRenameDialog(folder.name);
+    if (!newName || newName === folder.name) return;
+
+    try {
+      const folderRef = doc(firestore, 'folders', folder.id);
+      await updateDoc(folderRef, { name: newName });
+      refreshFiles();
+      showSnackbar('Folder renamed successfully', 'success');
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      showSnackbar('Failed to rename folder', 'error');
+    }
+  };
+
+  const handleFolderMenuItemClick = async (action: string) => {
+    if (!selectedFolder) return;
+
+    switch (action) {
+      case 'rename':
+        await handleFolderRename(selectedFolder);
+        break;
+      case 'delete':
+        await handleFolderDelete(selectedFolder.id);
+        break;
+    }
+    handleFolderMenuClose(selectedFolder.id);
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (window.location.pathname === '/trash') {
+      return <UnderImplementation />;
+    }
+
+    if (window.location.pathname === '/calendar') {
+      return <Calendar />;
+    }
+
+    return (
+      <Grid container spacing={{ xs: 1, sm: 2, md: 3 }}>
+        <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
+          <div>
+            <FolderCard onClick={handleSharedFolderClick}>
+              <FilePreview>
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'secondary.lighter',
+                  }}
+                >
+                  <FolderShared
+                    sx={{ fontSize: 64, color: 'secondary.main' }}
+                  />
+                </Box>
+              </FilePreview>
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Typography
+                  variant="subtitle1"
+                  noWrap
+                  sx={{
+                    fontWeight: 500,
+                    color: 'text.primary',
+                  }}
+                >
+                  Shared
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
+                  Shared files and folders
+                </Typography>
+              </CardContent>
+            </FolderCard>
+          </div>
+        </Grid>
+        {folders.map((folder) => (
+          <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={folder.id}>
+            <div>
+              <FolderCard onClick={() => handleFolderClick(folder.id)}>
+                <FilePreview>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'primary.lighter',
+                    }}
+                  >
+                    <FolderIcon
+                      sx={{ fontSize: 64, color: 'primary.main' }}
+                    />
+                  </Box>
+                </FilePreview>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          variant="subtitle1"
+                          noWrap
+                          sx={{
+                            fontWeight: 500,
+                            color: 'text.primary',
+                          }}
+                        >
+                          {folder.name}
+                        </Typography>
+                        {folder.sharedWith && folder.sharedWith.length > 0 && (
+                          <Tooltip
+                            title={
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+                                  Shared with:
+                                </Typography>
+                                {folder.sharedWith.map((email, idx) => (
+                                  <Typography key={idx} variant="body2">
+                                    {email}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            }
+                          >
+                            <CloudIcon 
+                              sx={{ 
+                                fontSize: 20,
+                                color: 'text.secondary',
+                                opacity: 0.6,
+                                transition: 'opacity 0.2s',
+                                '&:hover': {
+                                  opacity: 1
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                        )}
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.5 }}
+                      >
+                        {new Date(folder.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFolderMenuClick(e, folder);
+                      }}
+                      sx={{
+                        color: 'text.secondary',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </CardContent>
+              </FolderCard>
+            </div>
+          </Grid>
+        ))}
+        {files
+          .filter(file =>
+            file.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+          .map((file) => (
+            <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={file.id}>
+              <div>
+                <FileCard onClick={() => handleFileClick(file)}>
+                  <FilePreview>
+                    {file.type.startsWith('image/') ? (
+                      <img
+                        src={file.downloadURL}
+                        alt={file.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'grey.100'
+                        }}
+                      >
+                        <Typography variant="h1" color="textSecondary">
+                          {file.name.slice(-3).toUpperCase()}
+                        </Typography>
+                      </Box>
+                    )}
+                  </FilePreview>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography
+                        variant="subtitle1"
+                        noWrap
+                        sx={{
+                          fontWeight: 500,
+                          color: 'text.primary',
+                          flex: 1,
+                        }}
+                      >
+                        {file.name}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleFileMenuClick(e, file)}
+                        sx={{
+                          color: 'text.secondary',
+                          '&:hover': { bgcolor: 'action.hover' },
+                          ml: 1,
+                        }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                    >
+                      {formatFileSize(file.size)}
+                    </Typography>
+                  </CardContent>
+                </FileCard>
+              </div>
+            </Grid>
+          ))}
+      </Grid>
+    );
   };
 
   return (
@@ -1045,7 +1372,7 @@ const DashboardV2: React.FC = () => {
             <Button
               variant="outlined"
               startIcon={<DeleteOutline />}
-              onClick={() => navigate('/dashboard-v2/recycle-bin')}
+              onClick={handleTrashClick}
               sx={{
                 display: { xs: 'none', sm: 'inline-flex' },
                 borderRadius: 2,
@@ -1061,27 +1388,6 @@ const DashboardV2: React.FC = () => {
               }}
             >
               Recycle Bin
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CalendarToday />}
-              onClick={() => setShowCalendar(!showCalendar)}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                borderRadius: 2,
-                px: 3,
-                py: 1,
-                color: showCalendar ? 'primary.main' : 'text.secondary',
-                borderColor: showCalendar ? 'primary.main' : 'divider',
-                bgcolor: showCalendar ? 'primary.lighter' : 'transparent',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
-                  bgcolor: 'primary.lighter'
-                }
-              }}
-            >
-              Calendar
             </Button>
           </Box>
           <Box sx={{ 
@@ -1113,211 +1419,7 @@ const DashboardV2: React.FC = () => {
               </Button>
             )}
           </Box>
-          <Grid container spacing={{ xs: 1, sm: 2, md: 3 }}>
-            <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
-              <div>
-                <FolderCard onClick={handleSharedFolderClick}>
-                  <FilePreview>
-                    <Box
-                      sx={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'secondary.lighter',
-                      }}
-                    >
-                      <FolderShared
-                        sx={{ fontSize: 64, color: 'secondary.main' }}
-                      />
-                    </Box>
-                  </FilePreview>
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography
-                      variant="subtitle1"
-                      noWrap
-                      sx={{
-                        fontWeight: 500,
-                        color: 'text.primary',
-                      }}
-                    >
-                      Shared
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 0.5 }}
-                    >
-                      Shared files and folders
-                    </Typography>
-                  </CardContent>
-                </FolderCard>
-              </div>
-            </Grid>
-            {folders.map((folder) => (
-              <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={folder.id}>
-                <div>
-                  <FolderCard onClick={() => handleFolderClick(folder.id)}>
-                    <FilePreview>
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: 'primary.lighter',
-                        }}
-                      >
-                        <FolderIcon
-                          sx={{ fontSize: 64, color: 'primary.main' }}
-                        />
-                      </Box>
-                    </FilePreview>
-                    <CardContent sx={{ flexGrow: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography
-                              variant="subtitle1"
-                              noWrap
-                              sx={{
-                                fontWeight: 500,
-                                color: 'text.primary',
-                              }}
-                            >
-                              {folder.name}
-                            </Typography>
-                            {folder.sharedWith && folder.sharedWith.length > 0 && (
-                              <Tooltip
-                                title={
-                                  <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
-                                      Shared with:
-                                    </Typography>
-                                    {folder.sharedWith.map((email, idx) => (
-                                      <Typography key={idx} variant="body2">
-                                        {email}
-                                      </Typography>
-                                    ))}
-                                  </Box>
-                                }
-                              >
-                                <CloudIcon 
-                                  sx={{ 
-                                    fontSize: 20,
-                                    color: 'text.secondary',
-                                    opacity: 0.6,
-                                    transition: 'opacity 0.2s',
-                                    '&:hover': {
-                                      opacity: 1
-                                    }
-                                  }} 
-                                />
-                              </Tooltip>
-                            )}
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{ mt: 0.5 }}
-                          >
-                            {new Date(folder.createdAt).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFolderMenuClick(e, folder);
-                          }}
-                          sx={{
-                            color: 'text.secondary',
-                            '&:hover': { bgcolor: 'action.hover' },
-                          }}
-                        >
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </CardContent>
-                  </FolderCard>
-                </div>
-              </Grid>
-            ))}
-            {files
-              .filter(file =>
-                file.name.toLowerCase().includes(searchTerm.toLowerCase())
-              )
-              .map((file) => (
-                <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={file.id}>
-                  <div>
-                    <FileCard onClick={() => handleFileClick(file)}>
-                      <FilePreview>
-                        {file.type.startsWith('image/') ? (
-                          <img
-                            src={file.downloadURL}
-                            alt={file.name}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-                        ) : (
-                          <Box
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: 'grey.100'
-                            }}
-                          >
-                            <Typography variant="h1" color="textSecondary">
-                              {file.name.slice(-3).toUpperCase()}
-                            </Typography>
-                          </Box>
-                        )}
-                      </FilePreview>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography
-                            variant="subtitle1"
-                            noWrap
-                            sx={{
-                              fontWeight: 500,
-                              color: 'text.primary',
-                              flex: 1,
-                            }}
-                          >
-                            {file.name}
-                          </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => handleFileMenuClick(e, file)}
-                            sx={{
-                              color: 'text.secondary',
-                              '&:hover': { bgcolor: 'action.hover' },
-                              ml: 1,
-                            }}
-                          >
-                            <MoreVertIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                        >
-                          {formatFileSize(file.size)}
-                        </Typography>
-                      </CardContent>
-                    </FileCard>
-                  </div>
-                </Grid>
-              ))}
-          </Grid>
+          {renderContent()}
           <Box sx={{ mt: 4 }}>
             {!loading && files.length === 0 && folders.length === 0 && (
               <Typography color="text.secondary" align="center">
@@ -1355,6 +1457,7 @@ const DashboardV2: React.FC = () => {
             onFileUploaded={() => {
               fetchFiles();
               setIsUploadOpen(false);
+              setUploadSuccess({ show: true, fileName: '' });
             }}
           />
         </DialogContent>
@@ -1387,8 +1490,7 @@ const DashboardV2: React.FC = () => {
             <ListItemText>Share</ListItemText>
           </MenuItem>
           <MenuItem onClick={() => {
-            setIsRenameDialogOpen(true);
-            handleFolderMenuClose(selectedFolder.id);
+            handleFolderMenuItemClick('rename');
           }}>
             <ListItemIcon>
               <RenameIcon fontSize="small" />
@@ -1396,8 +1498,7 @@ const DashboardV2: React.FC = () => {
             <ListItemText>Rename</ListItemText>
           </MenuItem>
           <MenuItem onClick={() => {
-            // handleDeleteFolder(selectedFolder.id);
-            handleFolderMenuClose(selectedFolder.id);
+            handleFolderMenuItemClick('delete');
           }}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
@@ -1570,6 +1671,32 @@ const DashboardV2: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={isTrashDialogOpen}
+        onClose={() => setIsTrashDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+          }
+        }}
+      >
+        <UnderImplementation />
+      </Dialog>
+
+      <UploadSuccess
+        open={uploadSuccess.show}
+        onClose={() => setUploadSuccess({ show: false, fileName: '' })}
+        fileName={uploadSuccess.fileName}
+      />
+
+      <CalendarModal
+        open={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+      />
+
       <Drawer
         variant="temporary"
         anchor="left"
@@ -1707,6 +1834,9 @@ const DashboardV2: React.FC = () => {
                 <ListItemButton
                   onClick={toggleDarkMode}
                   sx={{
+                    minHeight: 48,
+                    justifyContent: !mobileOpen ? 'initial' : 'center',
+                    px: 2.5,
                     borderRadius: 2,
                     mb: 1,
                     '&:hover': {
@@ -1714,65 +1844,18 @@ const DashboardV2: React.FC = () => {
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: !mobileOpen ? 3 : 'auto',
+                      justifyContent: 'center',
+                      color: 'primary.main',
+                    }}
+                  >
                     {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
                   </ListItemIcon>
                   <ListItemText 
                     primary={darkMode ? "Light Mode" : "Dark Mode"}
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    setShowCalendar(!showCalendar);
-                    handleDrawerToggle();
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    <CalendarToday />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Calendar"
-                    primaryTypographyProps={{
-                      fontSize: '0.95rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    navigate('/dashboard-v2/recycle-bin');
-                    handleDrawerToggle();
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    '&:hover': {
-                      bgcolor: 'action.hover',
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'primary.main', minWidth: 40, fontSize: 24 }}>
-                    <DeleteOutline />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Recycle Bin"
                     primaryTypographyProps={{
                       fontSize: '0.95rem',
                       fontWeight: 500,
@@ -1788,51 +1871,73 @@ const DashboardV2: React.FC = () => {
       {/* Bottom Navigation for Mobile */}
       <Paper
         sx={{
-          display: { xs: 'block', sm: 'none' },
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: 1000,
+          display: { sm: 'none' },
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          borderRadius: 0,
+          borderTop: 1,
+          borderColor: 'divider',
         }}
         elevation={3}
       >
         <BottomNavigation
+          showLabels
           value={currentView}
           onChange={(_, newValue) => {
             setCurrentView(newValue);
-            if (newValue === 'shared') {
-              navigate('/dashboard-v2/shared');
-            } else {
-              navigate('/dashboard-v2');
-            }
           }}
-          showLabels
           sx={{
-            borderTop: 1,
-            borderColor: 'divider',
+            height: 64,
+            '& .MuiBottomNavigationAction-root': {
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+              },
+              '& .MuiBottomNavigationAction-label': {
+                fontSize: '0.75rem',
+                '&.Mui-selected': {
+                  fontSize: '0.75rem',
+                },
+              },
+            },
           }}
         >
-          <BottomNavigationAction 
-            label="Personal" 
+          <BottomNavigationAction
+            label="My Drive"
             icon={<FolderIcon />}
+            onClick={() => navigate('/dashboard-v2')}
             value="personal"
+          />
+          <BottomNavigationAction
+            label="Shared"
+            icon={<FolderShared />}
+            onClick={() => navigate('/dashboard-v2/shared')}
+            value="shared"
+          />
+          <BottomNavigationAction
+            label="Calendar"
+            icon={<CalendarToday />}
+            onClick={handleCalendarClick}
+            value="calendar"
+          />
+          <BottomNavigationAction
+            label="Trash"
+            icon={<DeleteOutline />}
+            onClick={handleTrashClick}
+            value="trash"
           />
         </BottomNavigation>
       </Paper>
 
-      <MediaViewer
-        open={!!selectedViewerFile}
-        onClose={() => setSelectedViewerFile(null)}
-        file={selectedViewerFile}
-      />
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <></>
+      {selectedFile && (
+        <MediaViewer
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+          open={!!selectedFile}
+        />
       )}
     </Box>
   );

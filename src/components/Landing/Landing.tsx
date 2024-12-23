@@ -33,8 +33,6 @@ import TwitterIcon from '@mui/icons-material/Twitter';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import AppleIcon from '@mui/icons-material/Apple';
 import AndroidIcon from '@mui/icons-material/Android';
-import appStoreLogo from '../../assets/app-store.svg';
-import playStoreLogo from '../../assets/play-store.svg';
 import OnePiece from '../EasterEgg/OnePiece';
 import { useAuth } from '../../context/AuthContext';
 
@@ -304,7 +302,7 @@ const Landing: React.FC = () => {
 
         <Grid container spacing={4} sx={{ py: 8 }}>
           {[
-            { icon: <GroupIcon />, title: 'Customizable', desc: 'Engaged with a personalized experience' },
+            { icon: <GroupIcon />, title: 'Customizable', desc: 'A personalized experience' },
             { icon: <SecurityIcon />, title: 'Flexible', desc: 'Data securely stored' },
             { icon: <CloudUploadIcon />, title: 'Seamless', desc: 'Effortlessly upload files' },
             { icon: <SettingsIcon />, title: 'Experience', desc: 'Get started for free' }
