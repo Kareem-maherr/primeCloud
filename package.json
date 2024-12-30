@@ -13,37 +13,50 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@tiptap/pm": "^2.10.4",
+    "@tiptap/react": "^2.10.4",
+    "@tiptap/starter-kit": "^2.10.4",
     "@types/jest": "^27.5.2",
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^16.18.61",
     "@types/papaparse": "^5.3.15",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@types/react-pdf": "^6.2.0",
     "@types/styled-components": "^5.1.34",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
     "date-fns": "^4.1.0",
+    "express": "^4.21.2",
     "firebase": "^10.6.0",
+    "firebase-admin": "^13.0.2",
     "framer-motion": "^11.15.0",
     "googleapis": "^144.0.0",
     "mime-types": "^2.1.35",
     "papaparse": "^5.4.1",
+    "quill-cursors": "^4.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",
     "react-loading-skeleton": "^3.3.1",
     "react-markdown": "^8.0.7",
     "react-pdf": "^9.1.1",
+    "react-quill": "^2.0.0",
     "react-router-dom": "^6.19.0",
     "react-scripts": "5.0.1",
     "styled-components": "^6.1.13",
     "typescript": "^4.9.5",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "ws": "^8.18.0",
+    "y-quill": "^1.0.0",
+    "y-websocket": "^2.1.0",
+    "yjs": "^13.6.21"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "collab-server": "node server/websocket.js"
   },
   "eslintConfig": {
     "extends": [
@@ -65,6 +78,8 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@types/node": "^22.10.2",
+    "@types/uuid": "^10.0.0",
     "path-browserify": "^1.0.1"
   }
 }

@@ -1,221 +1,215 @@
-import React from 'react';
+import React, { ReactNode, useState, useRef } from 'react';
 import {
   Box,
-  TextField,
-  Card,
   Typography,
   IconButton,
-  InputAdornment,
   styled,
-  /*Menu,
+  Divider,
+  Dialog,
+  DialogContent,
+  DialogActions,
+  Button,
+  Fade,
+  Menu,
   MenuItem,
   ListItemIcon,
-  ListItemText,*/
-  Divider,
+  ListItemText,
+  useTheme,
+  useMediaQuery,
+  Avatar,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   ViewModule as ViewModuleIcon,
   ViewList as ViewListIcon,
-  DeleteOutline as DeleteOutlineIcon,
+  Menu as MenuIcon,
+  Settings as SettingsIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
+  Logout as LogoutIcon,
+  Person as PersonIcon,
+  CreateNewFolder as CreateNewFolderIcon,
+  NoteAdd as NoteAddIcon,
+  CloudUpload as CloudUploadIcon,
+  Share as ShareIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
-import AnimatedUploadIcon from '../Icons/AnimatedUploadIcon';
-import {
-  AnimatedAddIcon,
-  AnimatedFolderIcon,
-  AnimatedGetAppIcon,
-  AnimatedTransferIcon,
-  AnimatedShareIcon,
-} from '../Icons/AnimatedActionIcons';
-import { motion } from 'framer-motion';
-
-const StyledSearchBar = styled(TextField)(({ theme }) => ({
-  '& .MuiOutlinedInput-root': {
-    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f5f5f5',
-    borderRadius: 8,
-    '&:hover': {
-      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#eeeeee',
-      '& .MuiOutlinedInput-notchedOutline': {
-        borderColor: theme.palette.primary.main,
-      },
-    },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderWidth: 1,
-    },
-    '&.Mui-focused': {
-      '& .MuiOutlinedInput-notchedOutline': {
-        borderColor: theme.palette.primary.main,
-        borderWidth: 1,
-      },
-    },
-  },
-}));
-
-const ActionCard = styled(motion(Card))(({ theme }) => ({
-  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f5f5f5',
-  padding: '12px 16px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  cursor: 'pointer',
-  borderRadius: 8,
-  border: '1px solid',
-  borderColor: 'transparent',
-  transition: 'all 0.2s',
-  '&:hover': {
-    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#eeeeee',
-    borderColor: theme.palette.primary.main,
-  },
-}));
-
-const AnimatedViewIcon = motion(IconButton);
+import CustomBar from '../UI/CustomBar';
+import CustomButton from '../UI/CustomButton';
+import logo from '../../assets/logo.png';
+import { User as FirebaseUser } from 'firebase/auth';
 
 interface ActionBarProps {
-  onSearch: (query: string) => void;
-  onUpload: () => void;
-  onCreate: () => void;
-  onCreateFolder: () => void;
-  onGetApp: () => void;
-  onTransfer: () => void;
-  onShare: () => void;
+  onSearch: (term: string) => Promise<Array<{ id: string; name: string; type: string; path: string; displayPath?: string }>>;
   onViewChange: (view: 'grid' | 'list') => void;
-  currentView: 'grid' | 'list';
-  onTrash: () => void;
+  currentView: string;
+  onMenuClick: () => void;
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
+  onLogout: () => void;
+  onProfileClick: () => void;
+  onCreateFolder: () => void;
+  onCreateFile: () => void;
+  onUpload: () => void;
+  onShare: () => void;
+  user: Partial<FirebaseUser>;
 }
 
 const ActionBar: React.FC<ActionBarProps> = ({
   onSearch,
-  onUpload,
-  onCreate,
-  onCreateFolder,
-  onGetApp,
-  onTransfer,
-  onShare,
   onViewChange,
   currentView,
-  onTrash,
+  onMenuClick,
+  darkMode,
+  onToggleDarkMode,
+  onLogout,
+  onProfileClick,
+  onCreateFolder,
+  onCreateFile,
+  onUpload,
+  onShare,
+  user,
 }) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const handleUserMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setUserMenuAnchor(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setUserMenuAnchor(null);
+  };
+
+  const handleAddClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAddMenuAnchor(event.currentTarget);
+  };
+
+  const handleAddClose = () => {
+    setAddMenuAnchor(null);
+  };
+
   return (
-    <Box sx={{ mb: 3, px: { xs: 2, sm: 3 }, py: 2 }}>
-      <Box sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        mb: 2,
-        gap: { xs: 1, sm: 2 }
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flex: 1 }}>
-          <StyledSearchBar
-            fullWidth
-            size="small"
-            placeholder="Search files..."
-            variant="outlined"
-            onChange={(e) => onSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: 'text.secondary' }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Box>
+    <Box sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 2,
+      p: 2,
+      borderBottom: 1,
+      borderColor: 'divider',
+      bgcolor: 'background.paper',
+    }}>
+      <IconButton
+        onClick={onMenuClick}
+        sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+      >
+        <MenuIcon />
+      </IconButton>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+        <img
+          src={logo}
+          alt="PrimeCloud Logo"
+          style={{ height: isMobile ? '32px' : '40px' }}
+        />
+        <Typography
+          variant={isMobile ? "h6" : "h5"}
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            color: theme.palette.primary.main,
+            fontWeight: 700,
+            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '0.5px'
+          }}
+        >
+          PrimeCloud
+        </Typography>
       </Box>
-      <Box sx={{ 
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1,
-        flexWrap: 'wrap'
-      }}>
-        <ActionCard 
-          onClick={onUpload} 
-          sx={{ bgcolor: 'background.paper', color: 'primary.main' }}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedUploadIcon />
-          <Typography variant="body2">Upload or drop</Typography>
-        </ActionCard>
-        <ActionCard 
-          onClick={onCreate}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedAddIcon />
-          <Typography variant="body2">Create</Typography>
-        </ActionCard>
-        <ActionCard 
-          onClick={onCreateFolder}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedFolderIcon />
-          <Typography variant="body2">Create folder</Typography>
-        </ActionCard>
-        <ActionCard 
-          onClick={onGetApp}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedGetAppIcon />
-          <Typography variant="body2">Get the app</Typography>
-        </ActionCard>
-        <ActionCard 
-          onClick={onTransfer}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedTransferIcon />
-          <Typography variant="body2">Transfer a copy</Typography>
-        </ActionCard>
-        <ActionCard 
-          onClick={onShare}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <AnimatedShareIcon />
-          <Typography variant="body2">Share</Typography>
-        </ActionCard>
-        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-        <ActionCard 
-          onClick={onTrash}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          sx={{ bgcolor: 'error.lighter', color: 'error.main' }}
-        >
-          <DeleteOutlineIcon />
-          <Typography variant="body2">Recycle Bin</Typography>
-        </ActionCard>
-        <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-          <AnimatedViewIcon 
-            onClick={() => onViewChange('grid')}
-            sx={{ 
-              bgcolor: currentView === 'grid' ? 'primary.main' : 'transparent',
-              color: currentView === 'grid' ? 'white' : 'inherit',
-              '&:hover': {
-                bgcolor: currentView === 'grid' ? 'primary.dark' : 'action.hover',
-              }
-            }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <CustomBar
+          placeholder="Search files and folders..."
+          onSearch={onSearch}
+          sx={{ maxWidth: 500 }}
+        />
+      </Box>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1 }}>
+          <CustomButton
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={onUpload}
           >
-            <ViewModuleIcon />
-          </AnimatedViewIcon>
-          <AnimatedViewIcon 
-            onClick={() => onViewChange('list')}
-            sx={{ 
-              bgcolor: currentView === 'list' ? 'primary.main' : 'transparent',
-              color: currentView === 'list' ? 'white' : 'inherit',
-              '&:hover': {
-                bgcolor: currentView === 'list' ? 'primary.dark' : 'action.hover',
-              }
-            }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            Upload
+          </CustomButton>
+
+          <CustomButton
+            variant="contained"
+            startIcon={<CreateNewFolderIcon />}
+            onClick={onCreateFolder}
           >
-            <ViewListIcon />
-          </AnimatedViewIcon>
+            Create Folder
+          </CustomButton>
+
+          <CustomButton
+            variant="contained"
+            startIcon={<NoteAddIcon />}
+            onClick={onCreateFile}
+          >
+            Create File
+          </CustomButton>
         </Box>
+
+        <IconButton
+          onClick={handleUserMenuClick}
+          size="small"
+          sx={{ ml: 2 }}
+        >
+          <Avatar
+            alt={user?.displayName || 'User'}
+            src={user?.photoURL || undefined}
+            sx={{ width: 32, height: 32 }}
+          >
+            {user?.displayName?.charAt(0).toUpperCase() || 'U'}
+          </Avatar>
+        </IconButton>
+
+        <Menu
+          anchorEl={userMenuAnchor}
+          open={Boolean(userMenuAnchor)}
+          onClose={handleUserMenuClose}
+          PaperProps={{
+            sx: {
+              mt: 1,
+              minWidth: 200
+            }
+          }}
+        >
+          <MenuItem onClick={() => { onProfileClick(); handleUserMenuClose(); }}>
+            <ListItemIcon>
+              <PersonIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Profile" secondary={user?.email} />
+          </MenuItem>
+          <MenuItem onClick={() => { onToggleDarkMode(); handleUserMenuClose(); }}>
+            <ListItemIcon>
+              {darkMode ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+            </ListItemIcon>
+            <ListItemText>{darkMode ? 'Light Mode' : 'Dark Mode'}</ListItemText>
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={() => { onLogout(); handleUserMenuClose(); }}>
+            <ListItemIcon>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Logout</ListItemText>
+          </MenuItem>
+        </Menu>
       </Box>
     </Box>
   );

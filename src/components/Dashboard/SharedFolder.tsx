@@ -145,6 +145,7 @@ const SharedFolder: React.FC = () => {
 
   const handleFileClick = (file: FileItem) => {
     console.log('File clicked:', file);
+	console.warn('Clicked!!!');
   };
 
   const formatFileSize = (bytes: number): string => {

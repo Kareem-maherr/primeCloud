@@ -10,8 +10,6 @@ import {
   Avatar,
   Slider,
   Divider,
-  TextField,
-  InputAdornment,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -19,7 +17,6 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
-  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useThemeMode } from '../../context/ThemeContext';
 import logo from '../../assets/logo.png';
@@ -31,8 +28,6 @@ interface TopBarProps {
   user?: User;
   cardSize?: number;
   onCardSizeChange?: (size: number) => void;
-  onSearch?: (term: string) => void;
-  showSearch?: boolean;
 }
 
 const TopBar: React.FC<TopBarProps> = ({ 
@@ -41,18 +36,23 @@ const TopBar: React.FC<TopBarProps> = ({
   user,
   cardSize = 2,
   onCardSizeChange,
-  onSearch,
-  showSearch = false
 }) => {
   const theme = useTheme();
   const { darkMode, toggleDarkMode } = useThemeMode();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [settingsAnchorEl, setSettingsAnchorEl] = React.useState<null | HTMLElement>(null);
   const [userMenuAnchorEl, setUserMenuAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [searchTerm, setSearchTerm] = React.useState('');
+
+  const handleSettingsClick = (event: React.MouseEvent<HTMLElement>) => {
+    setSettingsAnchorEl(event.currentTarget);
+  };
 
   const handleSettingsClose = () => {
     setSettingsAnchorEl(null);
+  };
+
+  const handleUserMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setUserMenuAnchorEl(event.currentTarget);
   };
 
   const handleUserMenuClose = () => {
@@ -65,15 +65,13 @@ const TopBar: React.FC<TopBarProps> = ({
     }
   };
 
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const term = event.target.value;
-    setSearchTerm(term);
-    onSearch?.(term);
-  };
-
   return (
-    <>
-      <Box sx={{
+    <Box sx={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%'
+    }}>
+      <Box sx={{ 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -115,39 +113,11 @@ const TopBar: React.FC<TopBarProps> = ({
             PrimeCloud
           </Typography>
         </Box>
-        {showSearch && (
-          <Box sx={{ 
-            flexGrow: 1, 
-            mx: 2,
-            display: 'flex',
-            alignItems: 'center'
-          }}>
-            <TextField
-              size="small"
-              placeholder="Search files..."
-              value={searchTerm}
-              onChange={handleSearch}
-              fullWidth
-              variant="outlined"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-                sx: {
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                }
-              }}
-            />
-          </Box>
-        )}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {user && (
             <>
               <IconButton
-                onClick={(e) => setUserMenuAnchorEl(e.currentTarget)}
+                onClick={handleUserMenuClick}
                 sx={{
                   p: 0,
                   '&:hover': {
@@ -228,7 +198,7 @@ const TopBar: React.FC<TopBarProps> = ({
                     </>
                   )}
                 </MenuItem>
-                <MenuItem dense onClick={() => setSettingsAnchorEl(null)}>
+                <MenuItem dense onClick={handleSettingsClose}>
                   <SettingsIcon sx={{ mr: 1.5, fontSize: '1.25rem' }} />
                   Settings
                 </MenuItem>
@@ -251,7 +221,7 @@ const TopBar: React.FC<TopBarProps> = ({
         </Box>
       </Box>
       <Divider />
-    </>
+    </Box>
   );
 };
 

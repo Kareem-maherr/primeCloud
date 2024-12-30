@@ -84,7 +84,7 @@ const UnderImplementation: React.FC = () => {
           fontStyle: 'italic',
         }}
       >
-        The Recycle Bin feature will be available soon!
+        This feature will be available soon!
       </Typography>
     </Box>
   );

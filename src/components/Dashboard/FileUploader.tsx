@@ -8,9 +8,20 @@ import {
   IconButton,
   Dialog,
   DialogTitle,
-  DialogContent
+  DialogContent,
+  DialogActions,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  CircularProgress
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { 
+  Close as CloseIcon,
+  CloudUpload as CloudUploadIcon,
+  InsertDriveFile as FileIcon,
+  Delete as DeleteIcon
+} from '@mui/icons-material';
 import { useDropzone } from 'react-dropzone';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage, firestore } from '../../config/firebase';
@@ -20,208 +31,314 @@ import { collection, addDoc } from 'firebase/firestore';
 interface FileUploaderProps {
   currentFolder: string | null;
   onFileUploaded: () => void;
+  onClose?: () => void;
+  onUploadSuccess?: (fileName: string) => void;
+  open: boolean;
 }
 
-const FileUploader: React.FC<FileUploaderProps> = ({ currentFolder, onFileUploaded }) => {
+const FileUploader: React.FC<FileUploaderProps> = ({ 
+  currentFolder, 
+  onFileUploaded, 
+  onClose, 
+  onUploadSuccess,
+  open
+}) => {
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const { currentUser } = useAuth();
+  const [files, setFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setFiles(prev => [...prev, ...acceptedFiles]);
+    setError('');
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+      'application/pdf': ['.pdf'],
+      'text/plain': ['.txt'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+    }
+  });
+
+  const removeFile = (indexToRemove: number) => {
+    setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const handleClose = () => {
+    console.log('FileUploader: handleClose called', { isUploading, onClose: !!onClose });
+    if (!isUploading && onClose) {
+      console.log('FileUploader: Not uploading, proceeding with close');
+      setFiles([]);
+      setUploadProgress({});
+      setError('');
+      setSuccess('');
+      onClose();
+    } else {
+      console.log('FileUploader: Cannot close - ' + (isUploading ? 'upload in progress' : 'no onClose handler'));
+    }
+  };
+
+  const handleFileUpload = async () => {
+    console.log('FileUploader: handleFileUpload called', { fileCount: files.length });
     if (!currentUser) {
+      console.error('FileUploader: No current user');
       setError('Please login to upload files');
       return;
     }
 
+    if (files.length === 0) {
+      console.warn('FileUploader: No files selected');
+      setError('Please select files to upload');
+      return;
+    }
+
+    setIsUploading(true);
     setError('');
     setSuccess('');
-
-    const uploadPromises = acceptedFiles.map(async (file) => {
-      try {
-        // Create storage path
-        const timestamp = new Date().getTime();
-        const uniqueFileName = `${timestamp}-${file.name}`;
-        const storagePath = `files/${currentUser.uid}${currentFolder ? `/${currentFolder}` : ''}/${uniqueFileName}`;
-        const storageRef = ref(storage, storagePath);
-
-        // Create upload task
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        // Monitor upload progress
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.name]: progress
-            }));
-          },
-          (error) => {
-            console.error('Upload error:', error);
-            setError(`Error uploading ${file.name}: ${error.message}`);
-          }
-        );
-
-        // Wait for upload to complete
-        await uploadTask;
-
-        // Get download URL
-        const downloadURL = await getDownloadURL(storageRef);
-
-        // Save file metadata to Firestore
-        const fileData = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          path: storagePath,
-          downloadURL: downloadURL,
-          userId: currentUser.uid,
-          userEmail: currentUser.email,
-          folderId: currentFolder,
-          createdAt: new Date().toISOString()
-        };
-
-        console.log('[FileUploader] Saving file metadata:', {
-          name: file.name,
-          userId: currentUser.uid,
-          userEmail: currentUser.email
-        });
-
-        await addDoc(collection(firestore, 'files'), fileData);
-
-        // Clear progress for this file
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[file.name];
-          return newProgress;
-        });
-
-        return true;
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        setError(`Error uploading ${file.name}`);
-        return false;
-      }
-    });
+    console.log('FileUploader: Starting upload process');
 
     try {
-      const results = await Promise.all(uploadPromises);
-      const allSuccessful = results.every(result => result);
-      
-      if (allSuccessful) {
-        setSuccess('All files uploaded successfully!');
-        onFileUploaded();
-      }
-    } catch (error) {
-      console.error('Error in upload process:', error);
-      setError('Some files failed to upload. Please try again.');
-    }
-  }, [currentUser, currentFolder, onFileUploaded]);
+      const uploadPromises = files.map(async (file) => {
+        console.log(`FileUploader: Processing file: ${file.name}`);
+        const timestamp = new Date().getTime();
+        const storagePath = `files/${currentUser.uid}${currentFolder ? `/${currentFolder}` : ''}/${timestamp}-${file.name}`;
+        const storageRef = ref(storage, storagePath);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
-    onDrop,
-    multiple: true
-  });
+        // Upload file
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        return new Promise<string>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log(`FileUploader: Upload progress for ${file.name}: ${progress}%`);
+              setUploadProgress((prev) => ({
+                ...prev,
+                [file.name]: progress,
+              }));
+            },
+            (error) => {
+              console.error(`FileUploader: Upload error for ${file.name}:`, error);
+              reject(error);
+            },
+            async () => {
+              try {
+                console.log(`FileUploader: Upload completed for ${file.name}, getting download URL`);
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                
+                // Create file document in Firestore
+                console.log(`FileUploader: Creating Firestore document for ${file.name}`);
+                const filesRef = collection(firestore, 'files');
+                await addDoc(filesRef, {
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  downloadURL,
+                  path: storagePath,
+                  folderId: currentFolder,
+                  userId: currentUser.uid,
+                  createdAt: new Date().toISOString(),
+                });
+
+                console.log(`FileUploader: Successfully processed ${file.name}`);
+                resolve(file.name);
+              } catch (firestoreError) {
+                console.error(`FileUploader: Firestore error for ${file.name}:`, firestoreError);
+                reject(firestoreError);
+              }
+            }
+          );
+        });
+      });
+
+      console.log('FileUploader: Waiting for all uploads to complete');
+      const uploadedFileNames = await Promise.all(uploadPromises);
+      
+      console.log('FileUploader: All uploads completed successfully', uploadedFileNames);
+      // Reset state
+      setFiles([]);
+      setUploadProgress({});
+      setSuccess('Files uploaded successfully');
+      
+      // Call callbacks
+      console.log('FileUploader: Calling callbacks');
+      onFileUploaded();
+      if (onUploadSuccess) {
+        onUploadSuccess(uploadedFileNames.join(', '));
+      }
+    } catch (err) {
+      console.error('FileUploader: Upload failed:', err);
+      setError('Upload failed. Please try again.');
+    } finally {
+      console.log('FileUploader: Upload process finished');
+      setIsUploading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  };
 
   return (
     <Dialog 
-      open={true} 
+      open={open} 
+      onClose={(event, reason) => {
+        console.log('FileUploader: Dialog onClose', { reason, isUploading });
+        if ((reason === 'backdropClick' || reason === 'escapeKeyDown') && !isUploading) {
+          handleClose();
+        }
+      }}
       maxWidth="sm" 
       fullWidth
       PaperProps={{
-        sx: {
-          borderRadius: 2,
-          maxHeight: '80vh'
-        }
+        sx: { minHeight: '60vh' }
       }}
     >
-      <DialogTitle sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        pb: 1
-      }}>
+      <DialogTitle sx={{ pb: 1 }}>
         Upload Files
         <IconButton 
-          onClick={() => onFileUploaded()} 
+          onClick={handleClose}
           size="small"
+          disabled={isUploading}
           sx={{ 
+            position: 'absolute',
+            right: 8,
+            top: 8,
             color: 'text.secondary',
-            '&:hover': { bgcolor: '#f5f5f5' }
+            visibility: isUploading ? 'hidden' : 'visible'
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent>
-        <Box 
-          {...getRootProps()} 
-          sx={{ 
+      
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: 1 }}>
+        {/* Dropzone */}
+        <Paper
+          {...getRootProps()}
+          sx={{
+            p: 3,
             border: '2px dashed',
-            borderColor: isDragActive ? 'primary.main' : 'grey.300',
-            borderRadius: 2,
-            padding: 3,
-            textAlign: 'center',
+            borderColor: isDragActive ? 'primary.main' : 'divider',
+            bgcolor: isDragActive ? 'primary.lighter' : 'background.paper',
             cursor: 'pointer',
-            bgcolor: isDragActive ? 'action.hover' : 'background.paper',
+            transition: 'all 0.2s ease-in-out',
             '&:hover': {
-              bgcolor: 'action.hover',
-              borderColor: 'primary.main'
-            },
-            transition: 'all 0.2s ease-in-out'
+              borderColor: 'primary.main',
+              bgcolor: 'primary.lighter'
+            }
           }}
         >
           <input {...getInputProps()} />
-          <Typography variant="h6" gutterBottom color={isDragActive ? 'primary' : 'textPrimary'}>
-            {isDragActive ? 'Drop the files here' : 'Drag & drop files here'}
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            or click to select files
-          </Typography>
-          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-            {currentFolder ? `Uploading to current folder` : 'Uploading to root directory'}
-          </Typography>
-        </Box>
-
-        {Object.entries(uploadProgress).map(([fileName, progress]) => (
-          <Box key={fileName} sx={{ mt: 2 }}>
-            <Typography variant="body2" noWrap>{fileName}</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Box sx={{ width: '100%', mr: 1 }}>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={progress} 
-                  sx={{
-                    height: 6,
-                    borderRadius: 3,
-                    bgcolor: 'grey.100',
-                    '& .MuiLinearProgress-bar': {
-                      borderRadius: 3,
-                      bgcolor: 'primary.main'
-                    }
-                  }}
-                />
-              </Box>
-              <Typography variant="body2" color="textSecondary" sx={{ minWidth: 35 }}>
-                {Math.round(progress)}%
-              </Typography>
-            </Box>
+          <Box sx={{ textAlign: 'center' }}>
+            <CloudUploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
+            <Typography variant="h6" gutterBottom>
+              {isDragActive ? 'Drop files here' : 'Drag & drop files here'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              or click to select files
+            </Typography>
           </Box>
-        ))}
+        </Paper>
 
+        {/* File List */}
+        {files.length > 0 && (
+          <Paper variant="outlined" sx={{ mt: 2 }}>
+            <List sx={{ p: 0 }}>
+              {files.map((file, index) => (
+                <ListItem
+                  key={`${file.name}-${index}`}
+                  secondaryAction={
+                    !isUploading && (
+                      <IconButton 
+                        edge="end" 
+                        aria-label="delete"
+                        onClick={() => removeFile(index)}
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    )
+                  }
+                  sx={{
+                    borderBottom: index < files.length - 1 ? '1px solid' : 'none',
+                    borderColor: 'divider'
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
+                    <FileIcon sx={{ color: 'primary.main' }} />
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="body2" noWrap>
+                        {file.name}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatFileSize(file.size)}
+                        </Typography>
+                        {uploadProgress[file.name] !== undefined && (
+                          <>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={uploadProgress[file.name]}
+                              sx={{ flexGrow: 1 }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              {Math.round(uploadProgress[file.name])}%
+                            </Typography>
+                          </>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+
+        {/* Error/Success Messages */}
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert severity="error" onClose={() => setError('')}>
             {error}
           </Alert>
         )}
-
         {success && (
-          <Alert severity="success" sx={{ mt: 2 }}>
+          <Alert severity="success" onClose={() => setSuccess('')}>
             {success}
           </Alert>
         )}
       </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button 
+          onClick={handleClose}
+          disabled={isUploading}
+          color="inherit"
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleFileUpload}
+          variant="contained"
+          disabled={files.length === 0 || isUploading}
+          startIcon={isUploading ? <CircularProgress size={20} /> : undefined}
+        >
+          {isUploading ? 'Uploading...' : 'Upload'}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 };

@@ -409,10 +409,12 @@ const Dashboard: React.FC = () => {
               {isUploadOpen && (
                 <FileUploader
                   currentFolder={currentFolder}
+                  open={isUploadOpen}
                   onFileUploaded={() => {
                     fetchFoldersAndFiles();
                     setIsUploadOpen(false);
                   }}
+                  onClose={() => setIsUploadOpen(false)}
                 />
               )}
 

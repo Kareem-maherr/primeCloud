@@ -3,42 +3,43 @@ import { motion } from 'framer-motion';
 import {
   Box,
   TextField,
-  Card,
-  Typography,
   IconButton,
+  Typography,
+  Button,
+  Chip,
+  Paper,
+  Grid,
   Menu,
   MenuItem,
-  ListItemIcon,
-  ListItemText,
+  InputAdornment,
+  Divider,
+  Card,
+  CardContent,
+  CardActions,
+  useTheme,
+  Tooltip,
+  CircularProgress,
+  Fade,
+  Slide,
+  Avatar,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
-  CircularProgress,
-  Grid,
-  Tooltip,
-  Fade,
-  useTheme,
-  useMediaQuery,
-  //Snackbar,
-  //Alert,
-  Chip,
-  //Paper,
-  InputAdornment,
-  Divider,
-  CardContent,
-  //CardActions,
-  //Avatar,
   Drawer,
   List,
   ListItem,
+  ListItemIcon,
+  ListItemText,
   ListItemButton,
-  //AppBar,
-  //Toolbar,
-  //Slider,
-  //BottomNavigation,
-  //BottomNavigationAction,
+  useMediaQuery,
+  AppBar,
+  Toolbar,
+  Snackbar,
+  Alert,
+  Slider,
+  BottomNavigation,
+  BottomNavigationAction,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -50,68 +51,64 @@ import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   CloudQueue as CloudIcon,
-  //DeleteOutline,
-  //CalendarToday,
+  DeleteOutline,
+  CalendarToday,
   FolderShared,
-  //Menu as MenuIcon,
-  //Settings as SettingsIcon,
+  Menu as MenuIcon,
+  Settings as SettingsIcon,
   Close as CloseIcon,
-  //DarkMode as DarkModeIcon,
-  //LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
   Logout as LogoutIcon,
   Folder as FolderIcon,
-  //Create as RenameIcon,
+  Create as RenameIcon,
   ArrowBack as ArrowBackIcon,
-  //Create as CreateIcon,
+  Create as CreateIcon,
   DriveFileRenameOutline as DriveFileRenameOutlineIcon,
-  Description,
+  Description as FileIcon,
   Image as ImageIcon,
   VideoFile as VideoIcon,
   PictureAsPdf as PdfIcon,
   InsertDriveFile as DefaultFileIcon,
   CreateNewFolder as CreateNewFolderIcon,
-  GetApp as GetAppIcon,
-  SwapHoriz as SwapHorizIcon,
-  NoteAdd as NoteAddIcon,
 } from '@mui/icons-material';
-import { styled, /*alpha*/ } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeMode } from '../../context/ThemeContext';
 import { firestore, storage, auth } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, getDoc, /*setDoc*/ addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
+import logo from '../../assets/logo.png';
 import { useNavigate, useParams } from 'react-router-dom';
 import Calendar from './Calendar';
-//import FolderManager from './FolderManager';
+import FolderManager from './FolderManager';
 import FileUploader from './FileUploader';
-//import TextFileCreator from './TextFileCreator';
-//import MediaViewer from './MediaViewer';
+import TextFileCreator from './TextFileCreator';
+import MediaViewer from './MediaViewer';
 import UnderImplementation from './UnderImplementation';
-//import CalendarModal from './CalendarModal';
+import CalendarModal from './CalendarModal';
 import UploadSuccess from './UploadSuccess';
-import TopBar from '../Layout/TopBar';
-//import AnimatedUploadIcon from '../Icons/AnimatedUploadIcon';
 import ActionBar from './ActionBar';
-import logo from '../../assets/logo.png';
-//import DashboardHeader from './DashboardHeader';
+import Sidebar from './Sidebar';
+import CustomBottomBar from '../UI/CustomBottomBar';
+import { User as FirebaseUser } from 'firebase/auth';
+import WeatherCard from '../UI/WeatherCard';
+import CollaborativeEditor from '../Editor/CollaborativeEditor';
+import StorageNoti from '../UI/StorageNoti';
 
 // Styled Components
 const StyledSearchBar = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
-    borderRadius: 8,
+    borderRadius: 30,
     backgroundColor: theme.palette.background.paper,
     '&:hover': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: theme.palette.primary.main,
       },
     },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderWidth: 1,
-    },
     '&.Mui-focused': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: theme.palette.primary.main,
-        borderWidth: 1,
       },
     },
   },
@@ -172,6 +169,7 @@ interface FileItem {
   path: string;
   folderPath?: string;
   folderId?: string | null;
+  fullPath?: string;
 }
 
 interface FolderItem {
@@ -187,19 +185,21 @@ interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
+interface User extends Partial<FirebaseUser> {}
+
 // Mock user data
-const mockUser = {
+const mockUser: User = {
   displayName: "John Doe",
   email: "john.doe@example.com",
-  photoURL: "https://ui-avatars.com/api/?name=John+Doe&background=random",
-  uid: "mock-user-123"
+  photoURL: undefined,
+  uid: "mock-user-id"
 };
 
 const getFileIcon = (type: string) => {
   if (type.startsWith('image/')) return <ImageIcon />;
   if (type.startsWith('video/')) return <VideoIcon />;
   if (type === 'application/pdf') return <PdfIcon />;
-  if (type.includes('text/')) return <Description />;
+  if (type.includes('text/')) return <FileIcon />;
   return <DefaultFileIcon />;
 };
 
@@ -212,7 +212,8 @@ const DashboardV2: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [currentFolder, setCurrentFolder] = useState<FolderItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -226,10 +227,11 @@ const DashboardV2: React.FC = () => {
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [cardSize, setCardSize] = useState<number>(2);
+  const [cardSize, setCardSize] = useState<number>(2.2);
   const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentView, setCurrentView] = useState('personal');
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -237,7 +239,7 @@ const DashboardV2: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'asc' });
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [fileMenuAnchor, setFileMenuAnchor] = useState<HTMLElement | null>(null);
+  const [fileMenuAnchor, setFileMenuAnchor] = useState<{ [key: string]: HTMLElement | null }>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -245,8 +247,8 @@ const DashboardV2: React.FC = () => {
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [addMenuAnchorEl, setAddMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [folderMenuAnchor, setFolderMenuAnchor] = useState<{ [key: string]: HTMLElement | null }>({});
   const [selectedFolder, setSelectedFolder] = useState<FolderItem | null>(null);
-  const [folderMenuAnchor, setFolderMenuAnchor] = useState<null | HTMLElement>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [isTextFileCreatorOpen, setIsTextFileCreatorOpen] = useState(false);
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; value: string }>({
@@ -262,6 +264,8 @@ const DashboardV2: React.FC = () => {
   const [isTrashDialogOpen, setIsTrashDialogOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<{ show: boolean; fileName: string }>({ show: false, fileName: '' });
+  const [bottomNavValue, setBottomNavValue] = useState('');
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const user = currentUser || mockUser;
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -306,7 +310,7 @@ const DashboardV2: React.FC = () => {
   const refreshFiles = useCallback(() => {
     fetchFiles();
     fetchFolders();
-  }, [currentFolder, currentUser]);
+  }, [currentFolderId, currentUser]);
 
   const renameFile = async (fileId: string, newName: string) => {
     try {
@@ -362,7 +366,7 @@ const DashboardV2: React.FC = () => {
       const foldersQuery = query(
         foldersRef,
         where('userId', '==', currentUser.uid),
-        where('parentId', '==', currentFolder)
+        where('parentId', '==', currentFolderId)
       );
       
       const foldersSnapshot = await getDocs(foldersQuery);
@@ -390,7 +394,7 @@ const DashboardV2: React.FC = () => {
       const ownedQuery = query(
         filesRef,
         where('userId', '==', currentUser.uid),
-        where('folderId', '==', currentFolder)
+        where('folderId', '==', currentFolderId)
       );
       const ownedSnapshot = await getDocs(ownedQuery);
       
@@ -442,21 +446,21 @@ const DashboardV2: React.FC = () => {
     }
   };
 
-  const handleSearch = async (term: string) => {
+  const handleSearch = async (term: string): Promise<Array<{ id: string; name: string; type: string; path: string; displayPath?: string }>> => {
     setSearchTerm(term);
-    if (!currentUser) return;
+    if (!currentUser) return [];
     
     try {
       setLoading(true);
-      const searchLower = term.toLowerCase();
-
-      // If search term is empty, reset to normal view
+      
       if (!term.trim()) {
         fetchFolders();
         fetchFiles();
-        return;
+        return [];
       }
 
+      const searchLower = term.toLowerCase();
+      
       // Search in folders
       const foldersRef = collection(firestore, 'folders');
       const foldersQuery = query(
@@ -464,50 +468,46 @@ const DashboardV2: React.FC = () => {
         where('userId', '==', currentUser.uid)
       );
       const foldersSnapshot = await getDocs(foldersQuery);
+      
       const filteredFolders = foldersSnapshot.docs
         .filter(doc => {
-          const folderData = doc.data();
+          const data = doc.data();
           return (
-            folderData.parentId === currentFolder &&
-            folderData.name.toLowerCase().includes(searchLower)
+            data.parentId === currentFolderId &&
+            data.name.toLowerCase().includes(searchLower)
           );
         })
-        .map(doc => ({
-          id: doc.id,
-          name: doc.data().name,
-          createdAt: doc.data().createdAt || new Date().toISOString(),
-          parentId: doc.data().parentId,
-          sharedWith: doc.data().sharedWith || []
-        })) as FolderItem[];
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            type: 'folder',
+            path: doc.id,
+            displayPath: data.parentId || 'root'
+          };
+        });
       
-      // Search in all files
+      // Search in files
       const filesRef = collection(firestore, 'files');
       const filesQuery = query(
         filesRef,
         where('userId', '==', currentUser.uid)
       );
       const filesSnapshot = await getDocs(filesQuery);
-      const filteredFiles: FileItem[] = [];
+      const searchResults = [];
 
       for (const doc of filesSnapshot.docs) {
         const fileData = doc.data();
         if (fileData.name.toLowerCase().includes(searchLower)) {
           try {
             const storagePath = fileData.path || fileData.url;
-            const fileRef = ref(storage, storagePath);
-            const downloadURL = fileData.downloadURL || await getDownloadURL(fileRef);
-            const folderPath = await getFolderPath(fileData.folderId);
-
-            filteredFiles.push({
+            searchResults.push({
               id: doc.id,
               name: fileData.name,
-              type: fileData.type || 'application/octet-stream',
-              size: fileData.size || 0,
-              downloadURL,
-              createdAt: fileData.createdAt || new Date().toISOString(),
+              type: 'file',
               path: storagePath,
-              folderPath,
-              folderId: fileData.folderId
+              displayPath: fileData.folderPath
             });
           } catch (error) {
             console.error(`Error fetching file ${fileData.name}:`, error);
@@ -515,16 +515,16 @@ const DashboardV2: React.FC = () => {
         }
       }
 
-      setFolders(filteredFolders);
-      setFiles(filteredFiles);
-
       // Log search results
       console.log(`Search results for "${term}":`, {
         folders: filteredFolders.length,
-        files: filteredFiles.length
+        files: searchResults.length
       });
+
+      return [...filteredFolders, ...searchResults];
     } catch (error) {
       console.error('Error during search:', error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -541,29 +541,38 @@ const DashboardV2: React.FC = () => {
 
   useEffect(() => {
     if (folderId) {
-      setCurrentFolder(folderId);
+      setCurrentFolderId(folderId);
     }
   }, [folderId]);
 
   useEffect(() => {
     refreshFiles();
-  }, [currentUser, currentFolder]);
+  }, [currentUser, currentFolderId]);
 
   useEffect(() => {
     refreshFiles();
-  }, [refreshFiles, currentFolder]);
+  }, [refreshFiles, currentFolderId]);
+
+  useEffect(() => {
+    if (currentFolderId) {
+      const folder = folders.find(f => f.id === currentFolderId);
+      setCurrentFolder(folder || null);
+    } else {
+      setCurrentFolder(null);
+    }
+  }, [currentFolderId, folders]);
 
   const handleFolderClick = (folderId: string) => {
-    setCurrentFolder(folderId);
+    setCurrentFolderId(folderId);
   };
-
+  
   const handleBackClick = async () => {
-    if (!currentFolder) return;
+    if (!currentFolderId) return;
     
     try {
-      const folderDoc = await getDoc(doc(firestore, 'folders', currentFolder));
+      const folderDoc = await getDoc(doc(firestore, 'folders', currentFolderId));
       if (folderDoc.exists()) {
-        setCurrentFolder(folderDoc.data().parentId);
+        setCurrentFolderId(folderDoc.data().parentId);
       }
     } catch (error) {
       console.error('Error navigating back:', error);
@@ -633,53 +642,13 @@ const DashboardV2: React.FC = () => {
   };
 
   const handleFolderMenuClick = (event: React.MouseEvent<HTMLElement>, folder: FolderItem) => {
-    console.log('Menu Click - Event:', event);
-    console.log('Menu Click - Folder:', folder);
     event.stopPropagation();
     setSelectedFolder(folder);
-    setFolderMenuAnchor(event.currentTarget);
+    setFolderMenuAnchor({ ...folderMenuAnchor, [folder.id]: event.currentTarget });
   };
 
-  const handleFolderMenuClose = () => {
-    console.log('Menu Close');
-    setSelectedFolder(null);
-    setFolderMenuAnchor(null);
-  };
-
-  const handleFolderMenuItemClick = async (action: string) => {
-    console.log('Menu Item Click - Action:', action);
-    console.log('Menu Item Click - Selected Folder:', selectedFolder);
-    
-    if (!selectedFolder) {
-      console.log('No folder selected!');
-      return;
-    }
-
-    switch (action) {
-      case 'rename':
-        console.log('Attempting rename...');
-        await handleFolderRename(selectedFolder);
-        break;
-      case 'share':
-        console.log('Opening share dialog...');
-        setIsShareDialogOpen(true);
-        setShareEmail('');
-        setShareError(null);
-        setShareSuccess(null);
-        break;
-      case 'delete':
-        console.log('Attempting delete...');
-        await handleFolderDelete(selectedFolder.id);
-        break;
-    }
-    handleFolderMenuClose();
-  };
-
-  const handleShareDialogClose = () => {
-    setIsShareDialogOpen(false);
-    setShareEmail('');
-    setShareError(null);
-    setShareSuccess(null);
+  const handleFolderMenuClose = (folderId: string) => {
+    setFolderMenuAnchor({ ...folderMenuAnchor, [folderId]: null });
   };
 
   const handleShare = async () => {
@@ -770,90 +739,79 @@ const DashboardV2: React.FC = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleFileClick = (file: FileItem) => {
-    if (isPreviewable(file.type)) {
-      setSelectedFile(file);
-    } else {
-      // Handle download or other actions for non-previewable files
-      window.open(file.downloadURL, '_blank');
-    }
-  };
-
-  const isPreviewable = (type: string): boolean => {
-    return [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'video/mp4', 'video/webm', 'video/ogg',
-      'audio/mpeg', 'audio/ogg', 'audio/wav',
-      'application/pdf',
-      'text/plain'
-    ].includes(type);
-  };
-
-  const handleFileMenuClick = (event: React.MouseEvent<HTMLElement>, file: FileItem) => {
-    console.log('File Menu Click - Event:', event);
-    console.log('File Menu Click - File:', file);
+  const handleFileClick = (file: FileItem, event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
     event.stopPropagation();
-    setSelectedFile(file);
-    setFileMenuAnchor(event.currentTarget);
-  };
+    console.log('File clicked:', {
+      name: file.name,
+      type: file.type,
+      path: file.path,
+      downloadURL: file.downloadURL,
+      fullPath: file.fullPath
+    });
 
-  const handleFileMenuClose = () => {
-    console.log('File Menu Close');
-    setSelectedFile(null);
-    setFileMenuAnchor(null);
-  };
+    // Check for text files by extension or MIME type
+    const textExtensions = ['.txt', '.json', '.md', '.csv', '.log'];
+    const isTextFile = file.type.startsWith('text/') || 
+                      file.type === 'application/json' ||
+                      textExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
 
-  const handleFileMenuItemClick = async (action: string) => {
-    console.log('File Menu Item Click - Action:', action);
-    console.log('File Menu Item Click - Selected File:', selectedFile);
-    
-    if (!selectedFile) {
-      console.log('No file selected!');
+    if (isTextFile) {
+      console.log('Opening in editor:', file.name);
+      setSelectedFile({ ...file, fullPath: file.path });
+      setIsEditorOpen(true);
       return;
     }
 
-    switch (action) {
-      case 'rename':
-        console.log('Attempting file rename...');
-        const newName = await showRenameDialog(selectedFile.name);
-        if (newName) {
-          try {
-            const fileRef = doc(firestore, 'files', selectedFile.id);
-            await updateDoc(fileRef, { name: newName });
-            refreshFiles();
-            showSnackbar('File renamed successfully', 'success');
-          } catch (error) {
-            console.error('Error renaming file:', error);
-            showSnackbar('Error renaming file', 'error');
-          }
-        }
-        break;
-      case 'delete':
-        console.log('Attempting file delete...');
-        const confirmed = await showConfirmDialog(
-          'Delete File',
-          `Are you sure you want to delete "${selectedFile.name}"?`
-        );
-        if (confirmed) {
-          try {
-            await deleteDoc(doc(firestore, 'files', selectedFile.id));
-            const storageRef = ref(storage, selectedFile.path);
-            await deleteObject(storageRef);
-            refreshFiles();
-            showSnackbar('File deleted successfully', 'success');
-          } catch (error) {
-            console.error('Error deleting file:', error);
-            showSnackbar('Error deleting file', 'error');
-          }
-        }
-        break;
+    // For non-text files, open in new tab
+    window.open(file.downloadURL, '_blank');
+  };
+
+  const handleFileMenuClick = (event: React.MouseEvent<HTMLElement>, file: FileItem) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+    setSelectedFile(file);
+  };
+
+  const handleFileDelete = async () => {
+    if (!selectedFile) return;
+    
+    const confirmDelete = await showConfirmDialog(
+      'Delete File',
+      `Are you sure you want to delete "${selectedFile.name}"?`
+    );
+    
+    if (confirmDelete) {
+      try {
+        await deleteFile(selectedFile.id);
+        refreshFiles();
+        showSnackbar('File deleted successfully', 'success');
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        showSnackbar('Failed to delete file', 'error');
+      }
     }
-    handleFileMenuClose();
+  };
+
+  const handleFileRename = async () => {
+    if (!selectedFile) return;
+    
+    const newName = await showRenameDialog(selectedFile.name);
+    if (newName && newName !== selectedFile.name) {
+      try {
+        await renameFile(selectedFile.id, newName);
+        refreshFiles();
+        showSnackbar('File renamed successfully', 'success');
+      } catch (error) {
+        console.error('Error renaming file:', error);
+        showSnackbar('Failed to rename file', 'error');
+      }
+    }
   };
 
   const handleCreateFolderClick = () => {
     setCreateFolderDialogOpen(true);
-    handleDrawerToggle(); // Close the drawer when opening dialog
   };
 
   const handleCloseCreateFolderDialog = () => {
@@ -884,7 +842,7 @@ const DashboardV2: React.FC = () => {
         createdAt: new Date().toISOString(),
         userId: currentUser.uid,
         createdBy: currentUser.email || '',
-        parentId: currentFolder,
+        parentId: currentFolderId,
         sharedWith: [],
         type: 'folder'
       };
@@ -956,6 +914,19 @@ const DashboardV2: React.FC = () => {
     }
   };
 
+  const handleFolderMenuItemClick = async (action: string) => {
+    if (!selectedFolder) return;
+
+    switch (action) {
+      case 'rename':
+        await handleFolderRename(selectedFolder);
+        break;
+      case 'delete':
+        await handleFolderDelete(selectedFolder.id);
+        break;
+    }
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -975,6 +946,26 @@ const DashboardV2: React.FC = () => {
 
     return (
       <Grid container spacing={{ xs: 1, sm: 2, md: 3 }}>
+        <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
+          <div>
+            <FolderCard>
+              <FilePreview sx={{ minHeight: '200px' }}>
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'secondary.lighter',
+                  }}
+                >
+                  <WeatherCard />
+                </Box>
+              </FilePreview>
+            </FolderCard>
+          </div>
+        </Grid>
         <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} sx={{ display: { xs: 'none', sm: 'block' } }}>
           <div>
             <FolderCard onClick={handleSharedFolderClick}>
@@ -1107,108 +1098,87 @@ const DashboardV2: React.FC = () => {
           </Grid>
         ))}
         {files
-          .filter(file =>
+          .filter((file) =>
             file.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
           .map((file) => (
             <Grid item xs={12} sm={6} md={cardSize} lg={cardSize} key={file.id}>
               <div>
-                <FileCard onClick={() => handleFileClick(file)}>
-                  <FilePreview>
-                    {file.type.startsWith('image/') ? (
-                      <img
-                        src={file.downloadURL}
-                        alt={file.name}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    ) : file.type.startsWith('video/') ? (
-                      <video
-                        src={file.downloadURL}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                        preload="metadata"
-                      />
-                    ) : file.type === 'application/pdf' ? (
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: '#ffebee'
-                        }}
-                      >
-                        <PdfIcon sx={{ fontSize: 48, color: '#f44336' }} />
+                <Box
+                  component="div"
+                  onClick={(e: React.MouseEvent<HTMLElement>) => handleFileClick(file, e)}
+                  sx={{
+                    cursor: 'pointer',
+                    '&:hover': {
+                      '& .MuiPaper-root': {
+                        boxShadow: 6,
+                      },
+                    },
+                  }}
+                >
+                  <FileCard>
+                    <FilePreview>
+                      {file.type.startsWith('image/') ? (
+                        <img
+                          src={file.downloadURL}
+                          alt={file.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'grey.100'
+                          }}
+                        >
+                          <Typography variant="h1" color="textSecondary">
+                            {file.name.slice(-3).toUpperCase()}
+                          </Typography>
+                        </Box>
+                      )}
+                    </FilePreview>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography
+                          variant="subtitle1"
+                          noWrap
+                          sx={{
+                            fontWeight: 500,
+                            color: 'text.primary',
+                            flex: 1,
+                          }}
+                        >
+                          {file.name}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={(e: React.MouseEvent<HTMLElement>) => handleFileMenuClick(e, file)}
+                          sx={{
+                            color: 'text.secondary',
+                            '&:hover': { bgcolor: 'action.hover' },
+                            ml: 1,
+                          }}
+                        >
+                          <MoreVertIcon fontSize="small" />
+                        </IconButton>
                       </Box>
-                    ) : file.type.startsWith('text/') ? (
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: '#e3f2fd'
-                        }}
-                      >
-                        <Description sx={{ fontSize: 48, color: '#2196f3' }} />
-                      </Box>
-                    ) : (
-                      <Box
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: 'grey.100'
-                        }}
-                      >
-                        {getFileIcon(file.type)}
-                      </Box>
-                    )}
-                  </FilePreview>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography
-                        variant="subtitle1"
-                        noWrap
-                        sx={{
-                          fontWeight: 500,
-                          color: 'text.primary',
-                          flex: 1,
-                        }}
+                        variant="body2"
+                        color="text.secondary"
                       >
-                        {file.name}
+                        {formatFileSize(file.size)}
                       </Typography>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => handleFileMenuClick(e, file)}
-                        sx={{
-                          color: 'text.secondary',
-                          '&:hover': { bgcolor: 'action.hover' },
-                          ml: 1,
-                        }}
-                      >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      {formatFileSize(file.size)}
-                    </Typography>
-                  </CardContent>
-                </FileCard>
+                    </CardContent>
+                  </FileCard>
+                </Box>
               </div>
             </Grid>
           ))}
@@ -1218,340 +1188,97 @@ const DashboardV2: React.FC = () => {
 
   return (
     <Box sx={{ 
-      p: { xs: 1, sm: 3 }, 
-      bgcolor: 'background.default', 
       minHeight: '100vh',
-      pb: { xs: 7, sm: 3 } // Add padding bottom for mobile to account for bottom navigation
+      bgcolor: 'background.default',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      <Fade in timeout={1000}>
-        <Box>
-          <TopBar 
-            onDrawerToggle={isMobile ? handleDrawerToggle : undefined}
-            onLogout={handleLogout}
-            user={user}
-            cardSize={cardSize}
-            onCardSizeChange={setCardSize}
-            onSearch={handleSearch}
-            showSearch={isMobile}
-          />
-          {/* Desktop Action Bar */}
-          {!isMobile && (
-            <ActionBar
-              onSearch={handleSearch}
-              onUpload={() => setIsUploadOpen(true)}
-              onCreate={() => setIsTextFileCreatorOpen(true)}
-              onCreateFolder={() => setCreateFolderDialogOpen(true)}
-              onGetApp={() => {
-                window.open('https://drive.google.com/drive/download', '_blank');
+      <ActionBar
+        onSearch={handleSearch}
+        onViewChange={(view) => setViewMode(view)}
+        currentView={viewMode}
+        onMenuClick={() => setMobileOpen(true)}
+        darkMode={theme.palette.mode === 'dark'}
+        onToggleDarkMode={toggleDarkMode}
+        onLogout={handleLogout}
+        onProfileClick={() => showSnackbar('Profile feature coming soon!', 'success')}
+        onCreateFolder={() => setCreateFolderDialogOpen(true)}
+        onCreateFile={() => setIsTextFileCreatorOpen(true)}
+        onUpload={() => setIsUploadOpen(true)}
+        onShare={() => showSnackbar('Share feature coming soon!', 'success')}
+        user={user}
+      />
+
+      <Sidebar
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        user={user}
+        onNavigate={(path) => {
+          if (path === '/') {
+            setCurrentFolderId(null);
+          } else if (path === '/trash') {
+            setIsTrashDialogOpen(true);
+          } else if (path === '/calendar') {
+            setIsCalendarOpen(true);
+          } else {
+            showSnackbar('This feature is coming soon!', 'success');
+          }
+        }}
+      />
+
+      <Box sx={{ 
+        p: { xs: 1, sm: 3 },
+        flex: 1,
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 1, 
+          mb: 3
+        }}>
+          {currentFolderId && (
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBackClick}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                py: 1,
+                color: 'text.secondary',
+                borderColor: 'divider',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  color: 'primary.main',
+                  bgcolor: 'primary.lighter'
+                }
               }}
-              onTransfer={() => {
-                showSnackbar('Transfer feature coming soon!', 'success');
-              }}
-              onShare={() => setIsShareDialogOpen(true)}
-              onViewChange={(view) => setCurrentView(view)}
-              currentView={currentView}
-              onTrash={() => setIsTrashDialogOpen(true)}
-            />
+            >
+              Back
+            </Button>
           )}
-          <Box sx={{
-            px: { xs: 2, sm: 3 },
-            py: 2,
-          }}>
-            <Box sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: 1, 
-              mb: 3
-            }}>
-              <Button
-                variant="outlined"
-                startIcon={<DeleteIcon />}
-                onClick={handleTrashClick}
-                sx={{
-                  display: { xs: 'none', sm: 'inline-flex' },
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1,
-                  color: 'text.secondary',
-                  borderColor: 'divider',
-                  '&:hover': {
-                    borderColor: 'primary.main',
-                    color: 'primary.main',
-                    bgcolor: 'primary.lighter'
-                  }
-                }}
-              >
-                Recycle Bin
-              </Button>
-            </Box>
-            <Box sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: 1, 
-              mb: 2
-            }}>
-              {currentFolder && (
-                <Button
-                  variant="outlined"
-                  startIcon={<ArrowBackIcon />}
-                  onClick={handleBackClick}
-                  sx={{
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1,
-                    mb: 2,
-                    color: 'text.secondary',
-                    borderColor: 'divider',
-                    '&:hover': {
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      bgcolor: 'primary.lighter'
-                    }
-                  }}
-                >
-                  Back
-                </Button>
-              )}
-            </Box>
-            {renderContent()}
-            <Box sx={{ mt: 4 }}>
-              {!loading && files.length === 0 && folders.length === 0 && (
-                <Typography color="text.secondary" align="center">
-                  No files in this folder
-                </Typography>
-              )}
-            </Box>
-          </Box>
         </Box>
-      </Fade>
-      {/* Mobile Drawer */}
-      {isMobile && (
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
-          }}
-          sx={{
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 },
-          }}
-        >
-          <Box sx={{ overflow: 'auto' }}>
-            {/* Logo and Name */}
-            <Box sx={{ 
-              p: 2, 
-              display: 'flex', 
-              alignItems: 'center',
-              gap: 2,
-              borderBottom: 1,
-              borderColor: 'divider'
-            }}>
-              <img src={logo} alt="Logo" style={{ width: 32, height: 32 }} />
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                PrimeCloud
-              </Typography>
-            </Box>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 1, 
+          mb: 2
+        }}>
+        </Box>
+        {renderContent()}
+        <Box sx={{ mt: 4 }}>
+          {!loading && files.length === 0 && folders.length === 0 && (
+            <Typography color="text.secondary" align="center">
+              No files in this folder
+            </Typography>
+          )}
+        </Box>
+      </Box>
 
-            <List>
-              {/* File Operations */}
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  setIsUploadOpen(true);
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <CloudUploadIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Upload" />
-                </ListItemButton>
-              </ListItem>
-              
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  setIsTextFileCreatorOpen(true);
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <NoteAddIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Create File" />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  setCreateFolderDialogOpen(true);
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <CreateNewFolderIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="New Folder" />
-                </ListItemButton>
-              </ListItem>
-
-              <Divider sx={{ my: 1 }} />
-
-              {/* Sharing & Transfer */}
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  setIsShareDialogOpen(true);
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <ShareIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Share" />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  showSnackbar('Transfer feature coming soon!', 'success');
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <SwapHorizIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Transfer" />
-                </ListItemButton>
-              </ListItem>
-
-              <Divider sx={{ my: 1 }} />
-
-              {/* System Operations */}
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  window.open('https://drive.google.com/drive/download', '_blank');
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <GetAppIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Get App" />
-                </ListItemButton>
-              </ListItem>
-
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => {
-                  setIsTrashDialogOpen(true);
-                  handleDrawerToggle();
-                }}>
-                  <ListItemIcon>
-                    <DeleteIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary="Trash" />
-                </ListItemButton>
-              </ListItem>
-
-              <Divider sx={{ my: 1 }} />
-              
-              {/* Account */}
-              <ListItem disablePadding>
-                <ListItemButton onClick={handleLogout}>
-                  <ListItemIcon>
-                    <LogoutIcon color="error" />
-                  </ListItemIcon>
-                  <ListItemText primary="Logout" sx={{ color: 'error.main' }} />
-                </ListItemButton>
-              </ListItem>
-            </List>
-          </Box>
-        </Drawer>
-      )}
-      {/* Rename Dialog */}
-      <Dialog open={renameDialog.open} onClose={() => (window as any).handleRenameDialogClose(null)}>
-        <DialogTitle>Rename</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Name"
-            fullWidth
-            variant="outlined"
-            value={renameDialog.value}
-            onChange={(e) => setRenameDialog({ ...renameDialog, value: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => (window as any).handleRenameDialogClose(null)}>Cancel</Button>
-          <Button onClick={() => (window as any).handleRenameDialogClose(renameDialog.value)} variant="contained" color="primary">
-            Rename
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Confirm Dialog */}
-      <Dialog open={confirmDialog.open} onClose={() => (window as any).handleConfirmDialogClose(false)}>
-        <DialogTitle>{confirmDialog.title}</DialogTitle>
-        <DialogContent>
-          <Typography>{confirmDialog.message}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => (window as any).handleConfirmDialogClose(false)}>Cancel</Button>
-          <Button onClick={() => (window as any).handleConfirmDialogClose(true)} variant="contained" color="error">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Folder Menu */}
-      <Menu
-        anchorEl={folderMenuAnchor}
-        open={Boolean(folderMenuAnchor)}
-        onClose={handleFolderMenuClose}
-      >
-        <MenuItem onClick={() => handleFolderMenuItemClick('rename')}>
-          <ListItemIcon>
-            <DriveFileRenameOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Rename</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => handleFolderMenuItemClick('share')}>
-          <ListItemIcon>
-            <ShareIcon fontSize="small" color="primary" />
-          </ListItemIcon>
-          <ListItemText>Share</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => handleFolderMenuItemClick('delete')}>
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
-        </MenuItem>
-      </Menu>
-
-      {/* Share Dialog */}
-      <Dialog open={isShareDialogOpen} onClose={handleShareDialogClose}>
-        <DialogTitle>Share Folder</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Email Address"
-            type="email"
-            fullWidth
-            variant="outlined"
-            value={shareEmail}
-            onChange={(e) => setShareEmail(e.target.value)}
-            error={Boolean(shareError)}
-            helperText={shareError}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleShareDialogClose}>Cancel</Button>
-          <Button onClick={handleShare} variant="contained" color="primary">
-            Share
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* File Upload Dialog */}
       <Dialog
         open={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
       >
         <DialogTitle>
@@ -1563,7 +1290,7 @@ const DashboardV2: React.FC = () => {
               position: 'absolute',
               right: 8,
               top: 8,
-              color: (theme) => theme.palette.grey[500],
+              color: 'grey.500',
             }}
           >
             <CloseIcon />
@@ -1571,85 +1298,321 @@ const DashboardV2: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <FileUploader
-            currentFolder={currentFolder}
+            open={isUploadOpen}
+            onClose={() => setIsUploadOpen(false)}
+            currentFolder={currentFolderId}
             onFileUploaded={() => {
+              fetchFiles();
               setIsUploadOpen(false);
-              refreshFiles();
-              setUploadSuccess({ show: true, fileName: 'Files' });
+              setUploadSuccess({ show: true, fileName: '' });
             }}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Upload Success Dialog */}
+      {isTextFileCreatorOpen && (
+        <TextFileCreator
+          currentFolder={currentFolderId}
+          onFileCreated={() => {
+            fetchFiles();
+            setIsTextFileCreatorOpen(false);
+          }}
+          onClose={() => setIsTextFileCreatorOpen(false)}
+        />
+      )}
+
+      {selectedFolder && (
+        <Menu
+          anchorEl={folderMenuAnchor[selectedFolder.id]}
+          open={Boolean(folderMenuAnchor[selectedFolder.id])}
+          onClose={() => handleFolderMenuClose(selectedFolder.id)}
+        >
+          <MenuItem onClick={() => {
+            setIsShareDialogOpen(true);
+            handleFolderMenuClose(selectedFolder.id);
+          }}>
+            <ListItemIcon>
+              <ShareIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Share</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => {
+            handleFolderMenuItemClick('rename');
+          }}>
+            <ListItemIcon>
+              <RenameIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Rename</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => {
+            handleFolderMenuItemClick('delete');
+          }}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Delete</ListItemText>
+          </MenuItem>
+        </Menu>
+      )}
+
+      {selectedFile && (
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={() => setAnchorEl(null)}
+        >
+          <MenuItem onClick={() => window.open(selectedFile.downloadURL, '_blank')}>
+            <ListItemIcon>
+              <DownloadIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Download</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleFileRename}>
+            <ListItemIcon>
+              <DriveFileRenameOutlineIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Rename</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleFileDelete}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>Delete</ListItemText>
+          </MenuItem>
+        </Menu>
+      )}
+
+      <Dialog open={isShareDialogOpen} onClose={() => setIsShareDialogOpen(false)}>
+        <DialogTitle>Share Folder</DialogTitle>
+        <DialogContent>
+          {shareError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {shareError}
+            </Alert>
+          )}
+          {shareSuccess && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {shareSuccess}
+            </Alert>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Email Address"
+            type="email"
+            fullWidth
+            value={shareEmail}
+            onChange={(e) => setShareEmail(e.target.value)}
+          />
+          {selectedFolder?.sharedWith && selectedFolder.sharedWith.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Shared with:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {(selectedFolder.sharedWith as string[]).map((email, idx) => (
+                  <Chip
+                    key={idx}
+                    label={email}
+                    onDelete={() => handleRemoveShare(email)}
+                    size="small"
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleShare} variant="contained">Share</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar 
+        open={!!shareSuccess}
+        autoHideDuration={6000} 
+        onClose={() => setShareSuccess(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setShareSuccess(null)} 
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {shareSuccess}
+        </Alert>
+      </Snackbar>
+
+      <Dialog open={renameDialog.open} onClose={() => (window as any).handleRenameDialogClose(null)}>
+        <DialogTitle>Rename</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="New name"
+            fullWidth
+            value={renameDialog.value}
+            onChange={(e) => setRenameDialog(prev => ({ ...prev, value: e.target.value }))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => (window as any).handleRenameDialogClose(null)}>Cancel</Button>
+          <Button onClick={() => (window as any).handleRenameDialogClose(renameDialog.value)}>Rename</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={confirmDialog.open} onClose={() => (window as any).handleConfirmDialogClose(false)}>
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <Typography>{confirmDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => (window as any).handleConfirmDialogClose(false)}>Cancel</Button>
+          <Button onClick={() => (window as any).handleConfirmDialogClose(true)} color="error">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      <Dialog 
+        open={createFolderDialogOpen} 
+        onClose={handleCloseCreateFolderDialog}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Create New Folder</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Folder Name"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            error={!!folderNameError}
+            helperText={folderNameError}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCreateFolderDialog}>Cancel</Button>
+          <Button
+            onClick={handleCreateFolder}
+            variant="contained"
+            disabled={!newFolderName.trim() || isCreatingFolder}
+          >
+            {isCreatingFolder ? <CircularProgress size={24} /> : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={isTrashDialogOpen}
+        onClose={() => setIsTrashDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+            borderRadius: 3,
+          }
+        }}
+      >
+        <UnderImplementation />
+      </Dialog>
+
       <UploadSuccess
         open={uploadSuccess.show}
         onClose={() => setUploadSuccess({ show: false, fileName: '' })}
         fileName={uploadSuccess.fileName}
       />
-      {/* Create Folder Dialog */}
-      <Dialog
-        open={createFolderDialogOpen}
-        onClose={handleCloseCreateFolderDialog}
-        aria-labelledby="create-folder-dialog-title"
-      >
-        <DialogTitle id="create-folder-dialog-title">Create New Folder</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            id="folder-name"
-            label="Folder Name"
-            type="text"
-            fullWidth
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            error={!!folderNameError}
-            helperText={folderNameError}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleCreateFolder();
-              }
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCreateFolderDialog} color="primary">
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleCreateFolder} 
-            color="primary"
-            disabled={isCreatingFolder}
-          >
-            {isCreatingFolder ? (
-              <CircularProgress size={24} />
-            ) : (
-              'Create'
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
-      {/* File Menu */}
-      <Menu
-        anchorEl={fileMenuAnchor}
-        open={Boolean(fileMenuAnchor)}
-        onClose={handleFileMenuClose}
+      <CalendarModal
+        open={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+      />
+
+      <Box sx={{ display: { xs: 'block', sm: 'none' }, position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <CustomBottomBar
+          onUpload={() => setIsUploadOpen(true)}
+          onCreateFolder={() => setCreateFolderDialogOpen(true)}
+          onCreateFile={() => setIsTextFileCreatorOpen(true)}
+          onSearch={handleSearch}
+          onSearchItemClick={(item) => {
+            if (item.type === 'folder') {
+              setCurrentFolderId(item.id);
+              setSearchTerm('');
+            } else {
+              const file = files.find(f => f.id === item.id);
+              if (file) {
+                setSelectedViewerFile(file);
+              }
+            }
+          }}
+        />
+      </Box>
+
+      {selectedFile && (
+        <MediaViewer
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+          open={!!selectedFile}
+        />
+      )}
+
+      <Dialog
+        open={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+          onClick: (e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()
+        }}
       >
-        <MenuItem onClick={() => handleFileMenuItemClick('rename')}>
-          <ListItemIcon>
-            <DriveFileRenameOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Rename</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => handleFileMenuItemClick('delete')}>
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
-        </MenuItem>
-      </Menu>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">{selectedFile?.name}</Typography>
+            <IconButton 
+              onClick={() => setIsEditorOpen(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent 
+          sx={{ flex: 1, p: 0 }}
+          onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+        >
+          {selectedFile && (
+            <CollaborativeEditor
+              documentId={selectedFile.id}
+              filePath={selectedFile.path}
+              currentUser={{
+                displayName: user.displayName || 'Anonymous',
+                email: user.email || '',
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

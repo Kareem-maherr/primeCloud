@@ -14,6 +14,7 @@ import OnePiece from './components/EasterEgg/OnePiece';
 import DashboardV2 from './components/Dashboard/DashboardV2';
 import RecycleBin from './components/Dashboard/RecycleBin';
 import SharedFolder from './components/Dashboard/SharedFolder';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
   return (
@@ -49,16 +50,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="/one-piece" element={<OnePiece />} />
-            <Route 
-              path="/recycle-bin" 
-              element={
-                <PrivateRoute>
-                  <RecycleBin />
-                </PrivateRoute>
-              } 
-            />
             <Route 
               path="/dashboard-v2/shared" 
               element={
@@ -72,6 +63,24 @@ function App() {
               element={
                 <PrivateRoute>
                   <DashboardV2 />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard-v2/profile" 
+              element={
+                <PrivateRoute>
+                  <ProfilePage />
+                </PrivateRoute>
+              } 
+            />
+            <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/one-piece" element={<OnePiece />} />
+            <Route 
+              path="/recycle-bin" 
+              element={
+                <PrivateRoute>
+                  <RecycleBin />
                 </PrivateRoute>
               } 
             />
